@@ -28,9 +28,9 @@ def get_schema():
             schema[key] = value 
     return schema, main_query, False
 
-def extract_policy_doc_info(main_query, text_embeddings, text_chunks, col_embeddings):
+def extract_policy_doc_info(main_query, text_embeddings, text_chunks, col_embeddings, openai_apikey):
     policy_doc_data = {}
-    client, gpt_model, max_num_chars = new_openai_session()
+    client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
     for col_name in col_embeddings:
         col_embedding, col_spec = col_embeddings[col_name]["embedding"], col_embeddings[col_name]["prompt"]
         top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding)
@@ -48,7 +48,7 @@ def print_milestone(milestone_desc, last_milestone_time, extras={}, mins=True):
         print(f"{extra}: {extras[extra]}")
     return time.time()
 
-def main(pdfs, main_query, column_specs, email):
+def main(pdfs, main_query, column_specs, email, openai_apikey):
     compare_output_bool = False
     output_doc = Document()
     total_num_pages = 0
@@ -60,16 +60,16 @@ def main(pdfs, main_query, column_specs, email):
             # 1) read pdf
             text_chunks, num_pages = extract_text_chunks_from_pdf(pdf_path)
             total_num_pages += num_pages
-            openai_client, _, _ = new_openai_session()
+            openai_client, _, _ = new_openai_session(openai_apikey)
             pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path)
 
             # 2) Prepare embeddings to grab most relevant text excerpts for each column
             #schema, main_query, compare_output_bool = get_schema()
-            openai_client, _, _ = new_openai_session()
+            openai_client, _, _ = new_openai_session(openai_apikey)
             col_embeddings = embed_schema(openai_client, column_specs) # i.e. {"col_name": {"prompt": <...>, "embedding": <...>}, ..., ...}
 
             # 3) Iterate through each column to grab relevant texts and query
-            policy_info = extract_policy_doc_info(main_query, pdf_embeddings, pdf_text_chunks, col_embeddings)
+            policy_info = extract_policy_doc_info(main_query, pdf_embeddings, pdf_text_chunks, col_embeddings, openai_apikey)
             # 4) Output Results
             output_results(output_doc, pdf_path, compare_output_bool, policy_info, get_resource_path)
 
@@ -102,6 +102,7 @@ if __name__ == "__main__":
                         pdfs.append(file_path)  
             main_query, column_specs, email = get_user_inputs()  
             with st.spinner('Generating output document...'):
-                main(pdfs, main_query, column_specs, email)
+                openai_apikey = st.secrets["openai_apikey"]
+                main(pdfs, main_query, column_specs, email, openai_apikey)
             st.success('Document generated!')
             os.unlink(temp_zip_path)

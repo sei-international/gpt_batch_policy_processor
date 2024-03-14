@@ -1,8 +1,8 @@
 from openai import OpenAI
 import os
 
-def new_openai_session():
-    os.environ["OPENAI_API_KEY"] = "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"
+def new_openai_session(openai_apikey):
+    os.environ["OPENAI_API_KEY"] = openai_apikey
     client = OpenAI()
     gpt_model = "gpt-4-1106-preview"
     max_num_chars = 400000

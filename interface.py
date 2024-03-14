@@ -35,7 +35,7 @@ def input_data_specs():
     for i in range(st.session_state['num_rows']):
         col1, col2 = st.columns(2)
         with col1:
-            st.text_input(f"Coluumn name", key=f"col1_{i}")
+            st.text_input(f"Column name", key=f"col1_{i}")
         with col2:
             st.text_input(f"Column description", key=f"col2_{i}")
     def add_row():

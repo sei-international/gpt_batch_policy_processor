@@ -1,3 +1,4 @@
+fitz
 numpy
 openai
 pdfplumber

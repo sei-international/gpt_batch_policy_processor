@@ -2,5 +2,5 @@ numpy
 openai
 pdfplumber
 python-docx
+sendgird
 streamlit
-yagmail

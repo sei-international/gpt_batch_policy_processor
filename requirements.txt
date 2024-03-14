@@ -1,0 +1,6 @@
+numpy
+openai
+pdfplumber
+python-docx
+streamlit
+yagmail

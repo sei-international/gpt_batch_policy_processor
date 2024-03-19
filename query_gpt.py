@@ -24,5 +24,5 @@ def fetch_column_info(gpt_client, gpt_model, query):
 
 def query_gpt_for_column(main_query, col_nm, col_spec, relevant_texts, gpt_client, gpt_model):
     excerpts = '\n'.join(relevant_texts)
-    prompt = main_query.format(excerpts=excerpts, column_name=col_nm, column_description=col_spec)
+    prompt = f"{main_query.format(column_name=col_nm, column_description=col_spec)} \n\n Text excerpts: {excerpts}"
     return fetch_column_info(gpt_client, gpt_model, prompt)

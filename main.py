@@ -2,7 +2,7 @@ from interface import build_interface, email_results, get_user_inputs
 from query_gpt import new_openai_session, query_gpt_for_column
 from read_pdf import extract_text_chunks_from_pdf
 from relevant_excerpts import generate_all_embeddings, embed_schema, find_top_relevant_texts
-from results import get_output_fname, output_results, output_metrics
+from results import format_output_doc, get_output_fname, output_results, output_metrics
 
 from docx import Document
 from tempfile import NamedTemporaryFile, TemporaryDirectory
@@ -51,6 +51,7 @@ def print_milestone(milestone_desc, last_milestone_time, extras={}, mins=True):
 def main(pdfs, main_query, column_specs, email, openai_apikey):
     compare_output_bool = False
     output_doc = Document()
+    format_output_doc(output_doc, main_query, column_specs)
     total_num_pages = 0
     total_start_time = time.time()
     for pdf in pdfs:

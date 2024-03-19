@@ -1,4 +1,6 @@
+from datetime import datetime
 from docx import Document
+from docx.shared import Pt
 import os
 import pandas as pd
 
@@ -48,6 +50,29 @@ def get_manually_extracted_row(country, pdf_path, col_names, df):
             manually_extracted_datum = row[col_name] if not pd.isna(row[col_name]) else ""
         manually_extracted_row.append(manually_extracted_datum)
     return manually_extracted_row"""
+
+def format_output_doc(output_doc, main_query, column_specs):
+    title = output_doc.add_heading(level=0)
+    title_run = title.add_run('Results: GPT Batch Policy Processor (beta)')
+    title_run.font.size = Pt(24)  
+    output_doc.add_heading(f"{datetime.today().strftime('%B %d, %Y')}", 1)
+    output_doc.add_heading(f"Query info", 2)
+    output_doc.add_paragraph("The following query is run for each of the column specifications listed below:")
+    query_paragraph = output_doc.add_paragraph()
+    query_run = query_paragraph.add_run(main_query)
+    query_run.italic = True
+    schema_col_names = list(column_specs.keys())
+    num_schema_cols = len(schema_col_names)
+    table = output_doc.add_table(rows=num_schema_cols+2, cols=2)
+    table.style = 'Table Grid'
+    table.cell(0, 0).text = "Column name"
+    table.cell(0, 0).paragraphs[0].runs[0].font.bold = True
+    table.cell(0, 1).text = "Column description"
+    table.cell(0, 1).paragraphs[0].runs[0].font.bold = True
+    for col_i in range(num_schema_cols):
+        col_name = schema_col_names[col_i]
+        table.cell(col_i+1, 0).text = col_name
+        table.cell(col_i+1, 1).text = column_specs[col_name]
 
 def output_results(output_doc, pdf_path, compare_output_bool, policy_info, path_fxn):
     col_names = list(policy_info.keys())

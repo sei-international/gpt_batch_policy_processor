@@ -46,7 +46,8 @@ def input_main_query():
                               'its forms everywhere, SDG2: End hunger, achieve food security..]). '
                               'Do not include any single quotation marks or apostraphes.') 
     #st.text(qtemplate_instructions)
-    qtemplate = ('From the following text excerpts, extract any quote that addresses “{variable_name}” which we define as “{variable_description}”. ' 
+    qtemplate = ('From the following text excerpts, extract any quote that includes a national action or plan that '
+                 'addresses “{variable_name}” which we define as “{variable_description}”. ' 
                  'Only include direct quotation with the corresponding page number(s) with a brief explanation of the context of '
                  'this quote within the text. It is very important not to hallucinate.')
     st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)

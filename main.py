@@ -1,4 +1,4 @@
-from interface import build_interface, email_results, get_user_inputs
+from interface import build_interface, display_output, email_results, get_user_inputs
 from query_gpt import new_openai_session, query_gpt_for_column
 from read_pdf import extract_text_chunks_from_pdf
 from relevant_excerpts import generate_all_embeddings, embed_schema, find_top_relevant_texts
@@ -6,7 +6,6 @@ from results import format_output_doc, get_output_fname, output_results, output_
 
 from docx import Document
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-import csv
 import os
 import streamlit as st
 import time
@@ -81,7 +80,7 @@ def main(pdfs, main_query, column_specs, email, openai_apikey):
     output_fname = get_output_fname(get_resource_path)
     output_doc.save(output_fname)
     email_results(output_fname, email)
-    #display_output(output_fname)
+    display_output(output_fname)
 
 
 if __name__ == "__main__":

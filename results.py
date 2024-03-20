@@ -1,5 +1,4 @@
 from datetime import datetime
-from docx import Document
 from docx.shared import Pt
 import os
 import pandas as pd

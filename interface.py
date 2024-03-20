@@ -6,37 +6,50 @@ import pandas as pd
 import streamlit as st
 
 def load_text():
-    st.title("GPT Batch Policy Processor (beta)")
+    html_temp = """
+    <div style="background-color:#00D29A;padding:10px;border-radius:10px">
+    <h2 style="color:white;text-align:center;">GPT Batch Policy Processor (beta)</h2>
+    <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Models ChatGPT. 
+The Tool allows the user to define specific queries to extract qualitative information.</h5>
+    <!--img src=".streamlit/static/sei_logo.png" alt="Logo" style="display:block;margin-left:auto;margin-right:auto;width:50%;"-->
+    </div>
+    """
+    st.markdown(html_temp, unsafe_allow_html=True)
+    #st.title("GPT Batch Policy Processor (beta)")
     instructions = """
-This tool allows users to bulk process collections of policy documents using Large Language Models like ChatGPT.
-
 ## How to use
-Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'column' specified below. 
-- **Step 1:** Upload a zipfile of PDF's (policy documents). Please start with 2-4 documents before running in bulk (no subfolders allowed).
-- **Step 2:** Specify a main query template. For each PDF, we will use this query template to request each particular piece of information specified in the table in step 3.
-- **Step 3:** Specify each particular piece of information you are looking to extract from each policy document.
-
-## Example: main query template
-*From the following text excerpts, list any references to “{column_name}” which we define as “{column_description}”. 
-Only include direct quotation with the corresponding page number(s) (seen in square brackets at the end of each excerpt) 
-with a brief explanation of the context of this quote within the text. It is very important not to hallucinate.*
-
-Please note curley brackets indicate keywords. *{column_name}* and *{column_description}* will be replaced by each 
-of specification listed in the table below (i.e. [SDG1: End poverty in all its forms everywhere, SDG2: ...]). 
-This query will be run iteratively for each document and for each data column.
-Do not include any single quotation marks or apostraphes.
+Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 
+- **Step 0:** IF YOU ARE A NEW USER, FIRST RUN A TEST ON ONE OR TWO DOCUMENTS.
+- **Step 1:** Create a ZIP file containing all the policy documents you want to analyze. Beta version only accepts pdf documents, no subfolders allowed.
+- **Step 2:** Upload the zipfile in the box below.
+- **Step 3:** Specify a main query template (see specific instructions and template below).
+- **Step 4:** For multiquery search, specify query variables (see specific instructions below).
+- **Step 5:** hit “Run”.
+- **Step 6:** DO NOT CLOSE SESSION until you have received or downloaded results.
 
 ## Submit your processing request"""
     st.markdown(instructions)
 
 def upload_zip():
-    uploaded_zip = st.file_uploader("Upload zipfile of PDF's", type="zip")
+    st.subheader("Upload ZIP-file of PDF's")
+    uploaded_zip = st.file_uploader("Upload zipfile of PDF's", type="zip", label_visibility='hidden')
     if uploaded_zip is not None:
         st.session_state['uploaded_zip'] = uploaded_zip
         st.success("File uploaded successfully!")
         
 def input_main_query():
-    st.session_state["main_query_input"] = st.text_area("Input main query template")
+    st.markdown("")
+    st.subheader("Edit Main Query Template")
+    qtemplate_instructions = ('Modify the generalized template query below. Please note curley brackets indicate '
+                              'keywords. *{variable_name}* and *{variable_description}* will be replaced by each '
+                              'of variable specification listed in the table below (i.e. [SDG1: End poverty in all '
+                              'its forms everywhere, SDG2: End hunger, achieve food security..]). '
+                              'Do not include any single quotation marks or apostraphes.') 
+    #st.text(qtemplate_instructions)
+    qtemplate = ('From the following text excerpts, extract any quote that addresses “{variable_name}” which we define as “{variable_description}”. ' 
+                 'Only include direct quotation with the corresponding page number(s) with a brief explanation of the context of '
+                 'this quote within the text. It is very important not to hallucinate.')
+    st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)
 
 def input_email():
     st.session_state["email"] = st.text_input("Enter your email where you'd like to recieve the results:")
@@ -48,14 +61,21 @@ def populate_with_SDGs():
     st.session_state['num_rows'] = len(st.session_state["SDGs"])
 
 def input_data_specs():
+    st.markdown("")
+    st.subheader("Specify Variables to Extract from Policy Documents")
+    hdr = ('For example, you may list particular SDGs as variables if you want to our tool to extract quotes '
+           'from the policy documents that address an SDG. For example, your list of variable names and descriptions '
+           'would be *[SDG1: End poverty in all its forms everywhere, SDG2: End hunger, achieve food security..]*. '
+           'You may also click the "Populate with SDGs" button below.')
+    st.markdown(hdr)
     tab1, tab2 = st.tabs(["Manual Entry", "Paste Table"])
     with tab1:
         st.session_state.tab_selection = 'manual_row_input'
         col1_label, col2_label = st.columns(2)
         with col1_label:
-            st.markdown("**Column name**")
+            st.markdown("**Variable name**")
         with col2_label:
-            st.markdown("**Column description**")
+            st.markdown("**Variable description**")
 
         if 'num_rows' not in st.session_state:
             st.session_state['num_rows'] = 1  # Starting with 1 row
@@ -65,9 +85,9 @@ def input_data_specs():
                 val = ""
                 if "SDGs" in st.session_state:
                     val = st.session_state["SDGs"][i] if i < len(st.session_state["SDGs"]) else ""
-                st.text_input("Column name", key=f"col1_{i}", value=val, label_visibility='hidden')
+                st.text_input("Variable name", key=f"col1_{i}", value=val, label_visibility='hidden')
             with col2:
-                st.text_input("Column description", key=f"col2_{i}", label_visibility='hidden')
+                st.text_input("Variable description", key=f"col2_{i}", label_visibility='hidden')
         def add_row():
             st.session_state['num_rows'] += 1
         def remove_row():
@@ -75,14 +95,15 @@ def input_data_specs():
                 st.session_state['num_rows'] -= 1
         col1, col2, _, col3 = st.columns([1, 1, 1, 1])
         with col1:
-            st.button("Add Row", on_click=add_row)
+            st.button("Add Variable", on_click=add_row)
         with col2:
-            st.button("Remove Row", on_click=remove_row)
+            st.button("Remove Variable", on_click=remove_row)
         with col3:
             st.button("Populate with SDGs", on_click=populate_with_SDGs)
     with tab2:
         st.session_state.tab_selection = 'paste_table' 
-        st.session_state["schema_table"] = st.text_area("Paste your Excel data here:", height=300)
+        label = "Copy 2 columns (variable_name, variable_description) from an excel spreadsheet or Microsoft Word table. Paste it below. Do not include headers."
+        st.session_state["schema_table"] = st.text_area(label, height=300)
     
 def process_table():
     input_format = st.session_state['schema_input_format']
@@ -107,9 +128,9 @@ def process_table():
     
 
 def build_interface():
-    load_text()
     if 'schema_input_format' not in st.session_state:
         st.session_state['schema_input_format'] = 'manual_row_input'
+    load_text()
     upload_zip()
     input_main_query()
     input_data_specs()
@@ -140,17 +161,6 @@ def email_results(docx_fname, recipient_email):
     except Exception as e:
         print(e)
         print(e.message)
-
-    # subject = "Results: GPT Batch POlicy Processor (Beta)"
-    # body = "Please find attached the document you generated."
-    # keyring.set_password("yagmail", st.secrets["email"], st.secrets["password"])
-    # yag = yagmail.SMTP(user=st.secrets["email"], password=st.secrets["password"])
-    # yag.send(
-    #     to=recipient_email,
-    #     subject=subject,
-    #     contents=body,
-    #     attachments=docx_fname,
-    # )
 
 def get_user_inputs():
     main_query = st.session_state["main_query_input"]

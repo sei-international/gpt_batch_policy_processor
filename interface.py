@@ -7,11 +7,12 @@ import streamlit as st
 
 def load_text():
     html_temp = """
-    <div style="background-color:#00D29A;padding:10px;border-radius:10px">
-    <h2 style="color:white;text-align:center;">GPT Batch Policy Processor (beta)</h2>
-    <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Models ChatGPT. 
-The Tool allows the user to define specific queries to extract qualitative information.</h5>
-    <!--img src=".streamlit/static/sei_logo.png" alt="Logo" style="display:block;margin-left:auto;margin-right:auto;width:50%;"-->
+    <div style="background-color:#00D29A;padding:10px;border-radius:10px;margin-bottom:20px;">
+        <img src="https://tr2ail.org/img/SEI-Master-Logo-Extended-Charcoal-RGB.cd475ad5.png" alt="Logo" style="height:50px;width:auto;float:right;">
+        <h2 style="color:white;text-align:center;">GPT Batch Policy Processor (beta)</h2>
+        <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Models ChatGPT. 
+    The Tool allows the user to define specific queries to extract qualitative information.</h5>
+        <br>
     </div>
     """
     st.markdown(html_temp, unsafe_allow_html=True)
@@ -71,7 +72,7 @@ def input_data_specs():
     st.markdown(hdr)
     tab1, tab2 = st.tabs(["Manual Entry", "Paste Table"])
     with tab1:
-        st.session_state.tab_selection = 'manual_row_input'
+        st.session_state.schema_input_format = 'manual_row_input'
         col1_label, col2_label = st.columns(2)
         with col1_label:
             st.markdown("**Variable name**")
@@ -102,7 +103,7 @@ def input_data_specs():
         with col3:
             st.button("Populate with SDGs", on_click=populate_with_SDGs)
     with tab2:
-        st.session_state.tab_selection = 'paste_table' 
+        st.session_state.schema_input_format = 'paste_table' 
         label = "Copy 2 columns (variable_name, variable_description) from an excel spreadsheet or Microsoft Word table. Paste it below. Do not include headers."
         st.session_state["schema_table"] = st.text_area(label, height=300)
     
@@ -125,6 +126,7 @@ def process_table():
         df['column_name'].replace('', pd.NA, inplace=True)
         df.dropna(subset=['column_name'], inplace=True)
         df = df[df['column_name'].notnull()]
+        print(df)
         return df.set_index('column_name')['column_description'].to_dict()
     
 

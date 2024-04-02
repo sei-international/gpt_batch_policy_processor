@@ -14,7 +14,7 @@ def create_word_table(doc, pdf_path, col_names, gpt_row, manual_row=None):
     doc.add_heading(f"{fname}", 2)
     num_cols = len(col_names)
     table = doc.add_table(rows=num_cols+2, cols=numcols)
-    table.cell(0, 0).text = "Column Name"
+    table.cell(0, 0).text = "Variable Name"
     table.cell(0, 0).paragraphs[0].runs[0].font.bold = True
     table.cell(0, gpt_col_num).text = "GPT Responses"
     table.cell(0, gpt_col_num).paragraphs[0].runs[0].font.bold = True
@@ -58,15 +58,16 @@ def format_output_doc(output_doc, main_query, column_specs):
     output_doc.add_heading(f"Query info", 2)
     output_doc.add_paragraph("The following query is run for each of the column specifications listed below:")
     query_paragraph = output_doc.add_paragraph()
-    query_run = query_paragraph.add_run(main_query)
+    query_text = main_query.replace("Text: {excerpts}", "")
+    query_run = query_paragraph.add_run(query_text)
     query_run.italic = True
     schema_col_names = list(column_specs.keys())
     num_schema_cols = len(schema_col_names)
     table = output_doc.add_table(rows=num_schema_cols+2, cols=2)
     table.style = 'Table Grid'
-    table.cell(0, 0).text = "Column name"
+    table.cell(0, 0).text = "Variable name"
     table.cell(0, 0).paragraphs[0].runs[0].font.bold = True
-    table.cell(0, 1).text = "Column description"
+    table.cell(0, 1).text = "Variable description"
     table.cell(0, 1).paragraphs[0].runs[0].font.bold = True
     for col_i in range(num_schema_cols):
         col_name = schema_col_names[col_i]

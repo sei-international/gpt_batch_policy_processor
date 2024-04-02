@@ -33,7 +33,7 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 
 def upload_zip():
     st.subheader("Upload ZIP-file of PDF's")
-    uploaded_zip = st.file_uploader("Upload zipfile of PDF's", type="zip", label_visibility='hidden')
+    uploaded_zip = st.file_uploader("Zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
     if uploaded_zip is not None:
         st.session_state['uploaded_zip'] = uploaded_zip
         st.success("File uploaded successfully!")
@@ -59,7 +59,25 @@ def input_email():
 # Function to pre-populate the DataFrame with a template for 15 rows
 def populate_with_SDGs():
     st.session_state["SDGs"] = [f"SDG {i+1}" for i in range(17)]
-    st.session_state["SDG_defs"] = ["" for i in range(17)]
+    st.session_state["SDG_defs"] = [
+        "End poverty in all its forms everywhere",
+        "End hunger, achieve food security and improved nutrition and promote sustainable agriculture",
+        "Ensure healthy lives and promote well-being for all at all ages",
+        "Ensure inclusive and equitable quality education and promote lifelong learning opportunities for all",
+        "Achieve gender equality and empower all women and girls",
+        "Ensure availability and sustainable management of water and sanitation for all",
+        "Ensure access to affordable, reliable, sustainable and modern energy for all",
+        "Promote sustained, inclusive and sustainable economic growth, full and productive employment and decent work for all",
+        "Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation",
+        "Reduce inequality within and among countries",
+        "Make cities and human settlements inclusive, safe, resilient and sustainable",
+        "Ensure sustainable consumption and production patterns",
+        "Take urgent action to combat climate change and its impacts",
+        "Conserve and sustainably use the oceans, seas and marine resources for sustainable development",
+        "Protect, restore and promote sustainable use of terrestrial ecosystems, sustainably manage forests, combat desertification, and halt and reverse land degradation and halt biodiversity loss",
+        "Promote peaceful and inclusive societies for sustainable development, provide access to justice for all and build effective, accountable and inclusive institutions at all levels",
+        "Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development"
+    ]
     st.session_state['num_rows'] = len(st.session_state["SDGs"])
 
 def input_data_specs():
@@ -70,26 +88,36 @@ def input_data_specs():
            'would be *[SDG1: End poverty in all its forms everywhere, SDG2: End hunger, achieve food security..]*. '
            'You may also click the "Populate with SDGs" button below.')
     st.markdown(hdr)
-    tab1, tab2 = st.tabs(["Manual Entry", "Paste Table"])
-    with tab1:
-        st.session_state.schema_input_format = 'manual_row_input'
+    selected_tab = st.radio(
+        "Select Input Format",
+        ["**Manual Entry**", "**Paste Table**"],
+        key="schema_input_format",
+        horizontal=True,
+        label_visibility='collapsed',
+        help="Insert variable information below. You may select your desired input format."
+    )
+    if selected_tab.replace("*","") == "Manual Entry":
         col1_label, col2_label = st.columns(2)
         with col1_label:
-            st.markdown("**Variable name**")
+            st.markdown("*Variable name*")
         with col2_label:
-            st.markdown("**Variable description**")
+            st.markdown("*Variable description*")
 
         if 'num_rows' not in st.session_state:
             st.session_state['num_rows'] = 1  # Starting with 1 row
         for i in range(st.session_state['num_rows']):
             col1, col2 = st.columns(2)
-            with col1:
+            def get_prepopulated_vals(key):
                 val = ""
-                if "SDGs" in st.session_state:
-                    val = st.session_state["SDGs"][i] if i < len(st.session_state["SDGs"]) else ""
-                st.text_input("Variable name", key=f"col1_{i}", value=val, label_visibility='hidden')
+                if key in st.session_state:
+                    val = st.session_state[key][i] if i < len(st.session_state[key]) else ""
+                return val
+            with col1:
+                val = get_prepopulated_vals("SDGs")
+                st.text_input("Variable name", key=f"col1_{i}", value=val, label_visibility='collapsed')
             with col2:
-                st.text_input("Variable description", key=f"col2_{i}", label_visibility='hidden')
+                val = get_prepopulated_vals("SDG_defs")
+                st.text_input("Variable description", key=f"col2_{i}", value=val, label_visibility='collapsed')
         def add_row():
             st.session_state['num_rows'] += 1
         def remove_row():
@@ -102,14 +130,13 @@ def input_data_specs():
             st.button("Remove Variable", on_click=remove_row)
         with col3:
             st.button("Populate with SDGs", on_click=populate_with_SDGs)
-    with tab2:
-        st.session_state.schema_input_format = 'paste_table' 
-        label = "Copy 2 columns (variable_name, variable_description) from an excel spreadsheet or Microsoft Word table. Paste it below. Do not include headers."
+    else:
+        label = "Copy 2 columns (variable_name, variable_description) from an excel spreadsheet. Paste it below. Do not include headers."
         st.session_state["schema_table"] = st.text_area(label, height=300)
     
 def process_table():
-    input_format = st.session_state['schema_input_format']
-    if input_format == 'manual_row_input':
+    input_format = st.session_state['schema_input_format'].replace("*", "")
+    if input_format == 'Manual Entry':
         column_specs =  {}
         for i in range(st.session_state['num_rows']):
             # Access each row's inputs using the keys
@@ -120,7 +147,9 @@ def process_table():
                 column_specs[col_name] = col_desc
         return column_specs
     else:
-        user_input= st.session_state["schema_table"] 
+        if 'schema_table' not in st.session_state:
+            st.session_state['schema_table'] = ''
+        user_input = st.session_state["schema_table"] 
         data = [line.split('\t') for line in user_input.split('\n')]
         df = pd.DataFrame(data, columns=["column_name", "column_description"]) 
         df['column_name'].replace('', pd.NA, inplace=True)
@@ -131,14 +160,14 @@ def process_table():
     
 
 def build_interface():
-    if 'schema_input_format' not in st.session_state:
-        st.session_state['schema_input_format'] = 'manual_row_input'
     load_text()
     upload_zip()
     input_main_query()
     input_data_specs()
     st.divider()
     input_email()
+    if 'schema_input_format' not in st.session_state:
+        st.session_state['schema_input_format'] = 'Manual Entry'
 
 def email_results(docx_fname, recipient_email):
     message = Mail(

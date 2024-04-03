@@ -111,11 +111,10 @@ if __name__ == "__main__":
             build_interface(temp_dir)
             if st.button("Run"):
                 pdfs, main_query, column_specs, email = get_user_inputs()  
-                print(pdfs)
                 with st.spinner('Generating output document...'):
                     openai_apikey = st.secrets["openai_apikey"]
-                    #log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> PDFS: {pdfs}, Main Query: {main_query}, Variables: {column_specs}, Email: {email}")
-                    #main(pdfs, main_query, column_specs, email, openai_apikey)
+                    log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> PDFS: {pdfs}, Main Query: {main_query}, Variables: {column_specs}, Email: {email}")
+                    main(pdfs, main_query, column_specs, email, openai_apikey)
                 st.success('Document generated!')
                 os.unlink(st.session_state["temp_zip_path"])
     except Exception as e:

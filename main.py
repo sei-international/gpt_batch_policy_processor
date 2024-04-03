@@ -11,7 +11,6 @@ import os
 import requests
 import streamlit as st
 import time
-import zipfile
 
 
 def get_resource_path(relative_path):
@@ -108,29 +107,17 @@ def main(pdfs, main_query, column_specs, email, openai_apikey):
 
 if __name__ == "__main__":
     try: 
-        build_interface()
-        if st.button("Run"):
-            uploaded_zip = st.session_state['uploaded_zip']
-            with TemporaryDirectory() as temp_dir:
-                pdfs = []
-                with NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
-                    temp_zip.write(uploaded_zip.getvalue())
-                    temp_zip_path = temp_zip.name
-                with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(temp_dir)
-                for subdir in os.listdir(temp_dir):
-                    subdir_path = os.path.join(temp_dir, subdir)
-                    for filename in os.listdir(subdir_path):
-                        if filename.endswith(".pdf"):
-                            file_path = os.path.join(subdir_path, filename)
-                            pdfs.append(file_path)  
-                main_query, column_specs, email = get_user_inputs()  
+        with TemporaryDirectory() as temp_dir:
+            build_interface(temp_dir)
+            if st.button("Run"):
+                pdfs, main_query, column_specs, email = get_user_inputs()  
+                print(pdfs)
                 with st.spinner('Generating output document...'):
                     openai_apikey = st.secrets["openai_apikey"]
-                    log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> PDFS: {pdfs}, Main Query: {main_query}, Variables: {column_specs}, Email: {email}")
-                    main(pdfs, main_query, column_specs, email, openai_apikey)
+                    #log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> PDFS: {pdfs}, Main Query: {main_query}, Variables: {column_specs}, Email: {email}")
+                    #main(pdfs, main_query, column_specs, email, openai_apikey)
                 st.success('Document generated!')
-                os.unlink(temp_zip_path)
+                os.unlink(st.session_state["temp_zip_path"])
     except Exception as e:
         log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {e}")
         

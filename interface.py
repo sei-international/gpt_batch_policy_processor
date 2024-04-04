@@ -31,14 +31,15 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 5:** hit “Run”.
 - **Step 6:** DO NOT CLOSE SESSION until you have received or downloaded results."""
     st.markdown(instructions)
-    st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
+    #st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
     st.markdown("""## Submit your processing request""")
 
 def upload_zip(temp_dir):
     st.subheader("Upload ZIP-file of PDF's")
     uploaded_zip = st.file_uploader("Zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
     if uploaded_zip is not None:
-        st.success("File uploaded successfully!")
+        st.success("""File uploaded successfully! \n
+Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.""", icon="✅")
         pdfs = []
         with NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
             temp_zip.write(uploaded_zip.getvalue())

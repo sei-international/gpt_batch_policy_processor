@@ -1,3 +1,4 @@
+from io import StringIO
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 from tempfile import NamedTemporaryFile, TemporaryDirectory
@@ -53,8 +54,10 @@ def upload_zip(temp_dir):
         st.session_state["pdfs"] = pdfs
         on = st.toggle('Run on subset', value=True, help="Do not turn this off until you are ready for your final run.", key="is_test_run")
         if on:
-            fnames = [os.path.basename(p) for p in pdfs]
-            st.session_state["selected_pdfs"] = st.multiselect("Select particular subfiles to run on", fnames, default=[fnames[0]])
+            fnames = {os.path.basename(p): p for p in pdfs}
+            first = os.path.basename(pdfs[0])      
+            selected_fnames = st.multiselect("Select particular subfiles to run on", fnames.keys(), default=[first])
+            st.session_state["selected_pdfs"] = [fnames[selected_fname] for selected_fname in selected_fnames]
         
 def input_main_query():
     st.markdown("")
@@ -115,16 +118,18 @@ def input_data_specs():
         help="Insert variable information below. You may select your desired input format."
     )
     if selected_tab.replace("*","") == "Manual Entry":
-        col1_label, col2_label = st.columns(2)
+        col1_label, col2_label, col3_label = st.columns(3)
         with col1_label:
             st.markdown("*Variable name*")
         with col2_label:
-            st.markdown("*Variable description*")
+            st.markdown("*Variable description* (optional)")
+        with col3_label:
+            st.markdown("*Context* (optional)")
 
         if 'num_rows' not in st.session_state:
             st.session_state['num_rows'] = 1  # Starting with 1 row
         for i in range(st.session_state['num_rows']):
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             def get_prepopulated_vals(key):
                 val = ""
                 if key in st.session_state:
@@ -136,6 +141,8 @@ def input_data_specs():
             with col2:
                 val = get_prepopulated_vals("SDG_defs")
                 st.text_input("Variable description", key=f"col2_{i}", value=val, label_visibility='collapsed')
+            with col3:
+                st.text_input("Context", key=f"col3_{i}", label_visibility='collapsed')
         def add_row():
             st.session_state['num_rows'] += 1
         def remove_row():
@@ -160,21 +167,29 @@ def process_table():
             # Access each row's inputs using the keys
             col_name = st.session_state[f"col1_{i}"]
             col_desc = st.session_state[f"col2_{i}"]
+            context = st.session_state[f"col3_{i}"]
             # Append the row's data to a list, or process it as needed
             if len(col_name) > 0 and col_name != '':
-                column_specs[col_name] = col_desc
+                variable_spec = {}
+                if len(col_desc) > 0:
+                    variable_spec["column_description"] = col_desc
+                if len(context) > 0:
+                    variable_spec["context"] = context
+                column_specs[col_name] = variable_spec
         return column_specs
     else:
         if 'schema_table' not in st.session_state:
             st.session_state['schema_table'] = ''
         user_input = st.session_state["schema_table"] 
-        data = [line.split('\t') for line in user_input.split('\n')] 
-        df = pd.DataFrame(data, columns=["column_name", "column_description"]) 
-        df['column_name'].replace('', pd.NA, inplace=True)
-        df.dropna(subset=['column_name'], inplace=True)
-        df = df[df['column_name'].notnull()]
-        return df.set_index('column_name')['column_description'].to_dict()
-    
+        if len(user_input) > 0:
+            data = StringIO(user_input)
+            df = pd.read_csv(data, sep="\t", header=None)
+            num_cols = df.shape[1]
+            df.columns = ["column_name", "column_description", "context"][:num_cols] 
+            df['column_name'] = df['column_name'].replace('', pd.NA)
+            df.dropna(subset=['column_name'], inplace=True)
+            df = df[df['column_name'].notnull()]
+            return {row['column_name']: {'column_description': row['column_description'], **({'context': row['context']} if 'context' in df.columns else {})} for _, row in df.iterrows()}
 
 def build_interface(tmp_dir):
     load_text()

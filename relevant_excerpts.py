@@ -39,32 +39,18 @@ def embed_schema_col(openai_client, prompt):
 def embed_schema(openai_client, schema):
     col_embeddings = {}
     for col in schema:
-        if col[:7] == "Section":
-            section = schema[col]
-            gen_prompt = section["general_prompt"]
-            for subsection in section:
-                if subsection != "general_prompt":
-                    prompt = gen_prompt.replace("<var>", subsection)
-                    if len(section[subsection])>0:
-                      prompt = prompt + f"{subsection} includes {section[subsection]}. "
-                    col_embeddings[subsection] = {"prompt": prompt, "embedding": embed_schema_col(openai_client, prompt)}
-        elif col[:6] == "Select":
-            select = schema[col]
-            prompt = select["general_prompt"]
-            options =  select["options"]
-            i=1
-            for option_name in options:
-                prompt += f"Option{i}: {option_name}. "
-                if len(options[option_name])>0:
-                    prompt += f"{option_name} includes {options[option_name]}. "
-                i=i+1
-            col_embeddings[col] = {"prompt": prompt, "embedding": embed_schema_col(openai_client, prompt)}
-        else:
-            prompt = col
-            if schema[col] != None:
-                if len(schema[col])>1:
-                    prompt = f"{col}: '{schema[col]}'"
-            col_embeddings[col] = {"prompt": prompt, "embedding": embed_schema_col(openai_client, prompt)}
+        prompt = col
+        col_desc = schema[col]["column_description"]
+        spec_dict = {"column_description": "", "context": ""}
+        if col_desc != None:
+            if len(col_desc)>1:
+                prompt = f"{col}: '{col_desc}'. "
+                spec_dict["column_description"] = col_desc
+            if 'context' in schema[col]:
+                prompt += f"Context: {schema[col]['context']}"
+                spec_dict["context"] = schema[col]['context']
+            spec_dict['embedding'] = embed_schema_col(openai_client, prompt)
+            col_embeddings[col] = spec_dict
     return col_embeddings
 
 def cosine_similarity(a, b):

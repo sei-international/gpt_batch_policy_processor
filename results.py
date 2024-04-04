@@ -63,16 +63,24 @@ def format_output_doc(output_doc, main_query, column_specs):
     query_run.italic = True
     schema_col_names = list(column_specs.keys())
     num_schema_cols = len(schema_col_names)
-    table = output_doc.add_table(rows=num_schema_cols+2, cols=2)
+    table = output_doc.add_table(rows=num_schema_cols+1, cols=2)
     table.style = 'Table Grid'
     table.cell(0, 0).text = "Variable name"
     table.cell(0, 0).paragraphs[0].runs[0].font.bold = True
-    table.cell(0, 1).text = "Variable description"
+    table.cell(0, 1).text = "Variable description (and context if provided)"
     table.cell(0, 1).paragraphs[0].runs[0].font.bold = True
-    for col_i in range(num_schema_cols):
-        col_name = schema_col_names[col_i]
-        table.cell(col_i+1, 0).text = col_name
-        table.cell(col_i+1, 1).text = column_specs[col_name]
+    try:
+        for col_i in range(num_schema_cols):
+            col_name = schema_col_names[col_i]
+            if len(col_name) > 0:
+                table.cell(col_i+1, 0).text = col_name
+                descr = column_specs[col_name]["column_description"]
+                if "context" in column_specs[col_name]:
+                    if len(column_specs[col_name]["context"])>0:
+                        descr += f"\nContext: {column_specs[col_name]['context']}"
+                table.cell(col_i+1, 1).text = descr
+    except Exception as e:
+        print(e)
 
 def output_results(output_doc, pdf_path, compare_output_bool, policy_info, path_fxn):
     col_names = list(policy_info.keys())

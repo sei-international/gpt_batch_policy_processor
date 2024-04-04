@@ -32,10 +32,10 @@ def extract_policy_doc_info(main_query, text_embeddings, text_chunks, col_embedd
     policy_doc_data = {}
     client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
     for col_name in col_embeddings:
-        col_embedding, col_spec = col_embeddings[col_name]["embedding"], col_embeddings[col_name]["prompt"]
+        col_embedding, col_desc, context = col_embeddings[col_name]["embedding"], col_embeddings[col_name]["column_description"], col_embeddings[col_name]["context"], 
         top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding)
         top_text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
-        resp = query_gpt_for_column(main_query, col_name, col_spec, top_text_chunks, client, gpt_model)
+        resp = query_gpt_for_column(main_query, col_name, col_desc, context, top_text_chunks, client, gpt_model)
         policy_doc_data[col_name] = resp
     return policy_doc_data
 
@@ -80,7 +80,7 @@ def main(pdfs, main_query, column_specs, email, openai_apikey):
         try:
             country_start_time = time.time()
             # 1) read pdf
-            text_chunks, num_pages = extract_text_chunks_from_pdf(pdf_path)
+            text_chunks, num_pages = extract_text_chunks_from_pdf(pdf_path)            
             total_num_pages += num_pages
             openai_client, _, _ = new_openai_session(openai_apikey)
             pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path)

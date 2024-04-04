@@ -88,8 +88,7 @@ def main(pdfs, main_query, column_specs, email, openai_apikey):
             # 2) Prepare embeddings to grab most relevant text excerpts for each column
             #schema, main_query, compare_output_bool = get_schema()
             openai_client, _, _ = new_openai_session(openai_apikey)
-            col_embeddings = embed_schema(openai_client, column_specs) # i.e. {"col_name": {"prompt": <...>, "embedding": <...>}, ..., ...}
-
+            col_embeddings = embed_schema(openai_client, column_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
             # 3) Iterate through each column to grab relevant texts and query
             policy_info = extract_policy_doc_info(main_query, pdf_embeddings, pdf_text_chunks, col_embeddings, openai_apikey)
             # 4) Output Results
@@ -103,7 +102,6 @@ def main(pdfs, main_query, column_specs, email, openai_apikey):
     output_doc.save(output_fname)
     email_results(output_fname, email)
     display_output(output_fname)
-
 
 if __name__ == "__main__":
     try: 

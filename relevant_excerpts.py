@@ -40,17 +40,17 @@ def embed_schema(openai_client, schema):
     col_embeddings = {}
     for col in schema:
         prompt = col
-        col_desc = schema[col]["column_description"]
         spec_dict = {"column_description": "", "context": ""}
-        if col_desc != None:
+        if "column_description" in schema[col]:
+            col_desc = schema[col]["column_description"]
             if len(col_desc)>1:
                 prompt = f"{col}: '{col_desc}'. "
                 spec_dict["column_description"] = col_desc
             if 'context' in schema[col]:
                 prompt += f"Context: {schema[col]['context']}"
                 spec_dict["context"] = schema[col]['context']
-            spec_dict['embedding'] = embed_schema_col(openai_client, prompt)
-            col_embeddings[col] = spec_dict
+        spec_dict['embedding'] = embed_schema_col(openai_client, prompt)
+        col_embeddings[col] = spec_dict
     return col_embeddings
 
 def cosine_similarity(a, b):

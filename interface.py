@@ -69,7 +69,7 @@ def input_main_query():
                               'its forms everywhere, SDG2: End hunger, achieve food security..]). '
                               'Do not include any single quotation marks or apostraphes.') 
     #st.text(qtemplate_instructions)
-    qtemplate = ('From the following text excerpts, extract any quote that includes a national action or plan that '
+    qtemplate = ('Extract any quote that includes a national action or plan that '
                  'addresses “{variable_name}” which we define as “{variable_description}”. ' 
                  'Only include direct quotation with the corresponding page number(s) with a brief explanation of the context of '
                  'this quote within the text. It is very important not to hallucinate.')
@@ -106,7 +106,7 @@ def input_data_specs():
     st.markdown("")
     st.subheader("Specify Variables to Extract from Policy Documents")
     hdr = ('For example, you may list particular SDGs as variables if you want to our tool to extract quotes '
-           'from the policy documents that address an SDG. For example, your list of variable names and descriptions '
+           'from the policy documents that address an SDG. In this case, your list of variable names and descriptions '
            'would be *[SDG1: End poverty in all its forms everywhere, SDG2: End hunger, achieve food security..]*. '
            'You may also click the "Populate with SDGs" button below.')
     st.markdown(hdr)
@@ -123,9 +123,9 @@ def input_data_specs():
         with col1_label:
             st.markdown("*Variable name*")
         with col2_label:
-            st.markdown("*Variable description* (optional)")
+            st.markdown("*Variable description (optional)*")
         with col3_label:
-            st.markdown("*Context* (optional)")
+            st.markdown("*Context (optional)*")
 
         if 'num_rows' not in st.session_state:
             st.session_state['num_rows'] = 1  # Starting with 1 row

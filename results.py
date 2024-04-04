@@ -74,13 +74,15 @@ def format_output_doc(output_doc, main_query, column_specs):
             col_name = schema_col_names[col_i]
             if len(col_name) > 0:
                 table.cell(col_i+1, 0).text = col_name
-                descr = column_specs[col_name]["column_description"]
+                descr = ""
+                if "column_description" in column_specs[col_name]:
+                    descr = column_specs[col_name]["column_description"]
                 if "context" in column_specs[col_name]:
                     if len(column_specs[col_name]["context"])>0:
-                        descr += f"\nContext: {column_specs[col_name]['context']}"
+                        descr += f"Context: {column_specs[col_name]['context']}"
                 table.cell(col_i+1, 1).text = descr
     except Exception as e:
-        print(e)
+        print(f"Error (format_output_doc()): {e}")
 
 def output_results(output_doc, pdf_path, compare_output_bool, policy_info, path_fxn):
     col_names = list(policy_info.keys())

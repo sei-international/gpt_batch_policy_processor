@@ -63,11 +63,11 @@ Please first run on a subset of PDF's to fine-tune functionality. Repeatedly run
 def input_main_query():
     st.markdown("")
     st.subheader("Edit Main Query Template")
-    qtemplate_instructions = ('Modify the generalized template query below. Please note curley brackets indicate '
-                              'keywords. *{variable_name}* and *{variable_description}* will be replaced by each '
+    qtemplate_instructions = ('Modify the generalized template query below. Please note curly brackets indicate '
+                              'keywords. *{variable_name}*, *{variable_description}*, and *{context}* will be replaced by each '
                               'of variable specification listed in the table below (i.e. [SDG1: End poverty in all '
                               'its forms everywhere, SDG2: End hunger, achieve food security..]). '
-                              'Do not include any single quotation marks or apostraphes.') 
+                              'Do not include any single quotation marks or apostrophes.') 
     #st.text(qtemplate_instructions)
     qtemplate = ('Extract any quote that includes a national action or plan that '
                  'addresses “{variable_name}” which we define as “{variable_description}”. ' 

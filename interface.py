@@ -1,3 +1,5 @@
+from analysis import get_analyzer, get_task_types
+
 from io import StringIO
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
@@ -35,10 +37,10 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
     st.markdown("""## Submit your processing request""")
 
 def upload_zip(temp_dir):
-    st.subheader("Upload ZIP-file of PDF's")
+    st.subheader("I. Upload ZIP-file of PDF's")
     uploaded_zip = st.file_uploader("Zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
     if uploaded_zip is not None:
-        st.success("""File uploaded successfully! \n
+        st.success("""Zip-file uploaded successfully! \n
 Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.""", icon="✅")
         pdfs = []
         with NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
@@ -62,7 +64,7 @@ Please first run on a subset of PDF's to fine-tune functionality. Repeatedly run
         
 def input_main_query():
     st.markdown("")
-    st.subheader("Edit Main Query Template")
+    st.subheader("II. Edit Main Query Template")
     qtemplate_instructions = ('Modify the generalized template query below. Please note curly brackets indicate '
                               'keywords. *{variable_name}*, *{variable_description}*, and *{context}* will be replaced by each '
                               'of variable specification listed in the table below (i.e. [SDG1: End poverty in all '
@@ -75,122 +77,82 @@ def input_main_query():
                  'this quote within the text. It is very important not to hallucinate.')
     st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)
 
-def input_email():
-    st.session_state["email"] = st.text_input("Enter your email where you'd like to recieve the results:")
-
-# Function to pre-populate the DataFrame with a template for 15 rows
 def populate_with_SDGs():
-    st.session_state["SDGs"] = [f"SDG {i+1}" for i in range(17)]
-    st.session_state["SDG_defs"] = [
-        "End poverty in all its forms everywhere",
-        "End hunger, achieve food security and improved nutrition and promote sustainable agriculture",
-        "Ensure healthy lives and promote well-being for all at all ages",
-        "Ensure inclusive and equitable quality education and promote lifelong learning opportunities for all",
-        "Achieve gender equality and empower all women and girls",
-        "Ensure availability and sustainable management of water and sanitation for all",
-        "Ensure access to affordable, reliable, sustainable and modern energy for all",
-        "Promote sustained, inclusive and sustainable economic growth, full and productive employment and decent work for all",
-        "Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation",
-        "Reduce inequality within and among countries",
-        "Make cities and human settlements inclusive, safe, resilient and sustainable",
-        "Ensure sustainable consumption and production patterns",
-        "Take urgent action to combat climate change and its impacts",
-        "Conserve and sustainably use the oceans, seas and marine resources for sustainable development",
-        "Protect, restore and promote sustainable use of terrestrial ecosystems, sustainably manage forests, combat desertification, and halt and reverse land degradation and halt biodiversity loss",
-        "Promote peaceful and inclusive societies for sustainable development, provide access to justice for all and build effective, accountable and inclusive institutions at all levels",
-        "Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development"
-    ]
-    st.session_state['num_rows'] = len(st.session_state["SDGs"])
+    sdg_df = pd.DataFrame([
+        {"variable_name": "SDG 1", "variable_description": "End poverty in all its forms everywhere", "context": ""},
+        {"variable_name": "SDG 2", "variable_description": "End hunger, achieve food security and improved nutrition and promote sustainable agriculture", "context": ""},
+        {"variable_name": "SDG 3", "variable_description": "Ensure healthy lives and promote well-being for all at all ages", "context": ""},
+        {"variable_name": "SDG 4", "variable_description": "Ensure inclusive and equitable quality education and promote lifelong learning opportunities for all", "context": ""},
+        {"variable_name": "SDG 5", "variable_description": "Achieve gender equality and empower all women and girls", "context": ""},
+        {"variable_name": "SDG 6", "variable_description": "Ensure availability and sustainable management of water and sanitation for all", "context": ""},
+        {"variable_name": "SDG 7", "variable_description": "Ensure access to affordable, reliable, sustainable and modern energy for all", "context": ""},
+        {"variable_name": "SDG 8", "variable_description": "Promote sustained, inclusive and sustainable economic growth, full and productive employment and decent work for all", "context": ""},
+        {"variable_name": "SDG 9", "variable_description": "Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation", "context": ""},
+        {"variable_name": "SDG 10", "variable_description": "Reduce inequality within and among countries", "context": ""},
+        {"variable_name": "SDG 11", "variable_description": "Make cities and human settlements inclusive, safe, resilient and sustainable", "context": ""},
+        {"variable_name": "SDG 12", "variable_description": "Ensure sustainable consumption and production patterns", "context": ""},
+        {"variable_name": "SDG 13", "variable_description": "Take urgent action to combat climate change and its impacts", "context": ""},
+        {"variable_name": "SDG 14", "variable_description": "Conserve and sustainably use the oceans, seas and marine resources for sustainable development", "context": ""},
+        {"variable_name": "SDG 15", "variable_description": "Protect, restore and promote sustainable use of terrestrial ecosystems, sustainably manage forests, combat desertification, and halt and reverse land degradation and halt biodiversity loss", "context": ""},
+        {"variable_name": "SDG 16", "variable_description": "Promote peaceful and inclusive societies for sustainable development, provide access to justice for all and build effective, accountable and inclusive institutions at all levels", "context": ""},
+        {"variable_name": "SDG 17", "variable_description": "Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development", "context": ""}
+    ])
+    st.session_state["variables_df"] = sdg_df
+
+def clear_variables():
+    empty_df = pd.DataFrame([{"variable_name": "", "variable_description": "", "context": ""}])
+    st.session_state["variables_df"] = empty_df
 
 def input_data_specs():
     st.markdown("")
-    st.subheader("Specify Variables to Extract from Policy Documents")
+    st.subheader("III. Specify Variables to Extract from Policy Documents")
     hdr = ('For example, you may list particular SDGs as variables if you want to our tool to extract quotes '
            'from the policy documents that address an SDG. In this case, your list of variable names and descriptions '
            'would be *[SDG1: End poverty in all its forms everywhere, SDG2: End hunger, achieve food security..]*. '
            'You may also click the "Populate with SDGs" button below.')
     st.markdown(hdr)
-    selected_tab = st.radio(
-        "Select Input Format",
-        ["**Manual Entry**", "**Paste Table**"],
-        key="schema_input_format",
-        horizontal=True,
-        label_visibility='collapsed',
-        help="Insert variable information below. You may select your desired input format."
-    )
-    if selected_tab.replace("*","") == "Manual Entry":
-        col1_label, col2_label, col3_label = st.columns(3)
-        with col1_label:
-            st.markdown("*Variable name*")
-        with col2_label:
-            st.markdown("*Variable description (optional)*")
-        with col3_label:
-            st.markdown("*Context (optional)*")
+    st.markdown("**Type-in variable details or copy-and-paste from an excel spreadsheetc (no headers).**")
+    if "variables_df" not in st.session_state:
+        st.session_state["variables_df"] = pd.DataFrame([
+            {"variable_name": "SDG 1", "variable_description": "End poverty in all its forms everywhere.", "context": ""},
+            {"variable_name": "SDG 2", "variable_description": "End hunger, achieve food security and improved nutrition and promote sustainable agriculture.", "context": ""},
+        ])
+    col_order = ["variable_name", "variable_description", "context"]
+    variables_df = st.session_state["variables_df"]
+    st.session_state["schema_table"]  = st.data_editor(variables_df, num_rows="dynamic", use_container_width=True, hide_index=True, column_order=col_order)
+    _, div3, corner_div = st.columns([2, 1, 1])
+    with div3:
+        st.button("Clear", on_click=clear_variables)
+    with corner_div:
+        st.button("Populate with SDGs", on_click=populate_with_SDGs)
+    with st.expander("Advanced settings"):
+        st.selectbox(
+            'Optional: specify the overall operation type',
+            list(get_task_types().keys()),
+            key='task_type'
+        )
+        if st.session_state["task_type"] == "Quote extraction":
+            options = st.session_state["output_format_options"]
+            if 'output_format' not in st.session_state:
+                st.session_state['output_format'] = list(options.keys())[0]
+            st.selectbox(
+                'Optional: select format of output table for each document',
+                options.keys(),
+                key='output_format'
+            )
 
-        if 'num_rows' not in st.session_state:
-            st.session_state['num_rows'] = 1  # Starting with 1 row
-        for i in range(st.session_state['num_rows']):
-            col1, col2, col3 = st.columns(3)
-            def get_prepopulated_vals(key):
-                val = ""
-                if key in st.session_state:
-                    val = st.session_state[key][i] if i < len(st.session_state[key]) else ""
-                return val
-            with col1:
-                val = get_prepopulated_vals("SDGs")
-                st.text_input("Variable name", key=f"col1_{i}", value=val, label_visibility='collapsed')
-            with col2:
-                val = get_prepopulated_vals("SDG_defs")
-                st.text_input("Variable description", key=f"col2_{i}", value=val, label_visibility='collapsed')
-            with col3:
-                st.text_input("Context", key=f"col3_{i}", label_visibility='collapsed')
-        def add_row():
-            st.session_state['num_rows'] += 1
-        def remove_row():
-            if st.session_state['num_rows'] > 1:
-                st.session_state['num_rows'] -= 1
-        col1, col2, _, col3 = st.columns([1, 1, 1, 1])
-        with col1:
-            st.button("Add Variable", on_click=add_row)
-        with col2:
-            st.button("Remove Variable", on_click=remove_row)
-        with col3:
-            st.button("Populate with SDGs", on_click=populate_with_SDGs)
-    else:
-        label = "Copy 2 columns (variable_name, variable_description) from an excel spreadsheet. Paste it below. Do not include headers."
-        st.session_state["schema_table"] = st.text_area(label, height=300)
-    
 def process_table():
-    input_format = st.session_state['schema_input_format'].replace("*", "")
-    if input_format == 'Manual Entry':
-        column_specs =  {}
-        for i in range(st.session_state['num_rows']):
-            # Access each row's inputs using the keys
-            col_name = st.session_state[f"col1_{i}"]
-            col_desc = st.session_state[f"col2_{i}"]
-            context = st.session_state[f"col3_{i}"]
-            # Append the row's data to a list, or process it as needed
-            if len(col_name) > 0 and col_name != '':
-                variable_spec = {}
-                if len(col_desc) > 0:
-                    variable_spec["column_description"] = col_desc
-                if len(context) > 0:
-                    variable_spec["context"] = context
-                column_specs[col_name] = variable_spec
-        return column_specs
-    else:
-        if 'schema_table' not in st.session_state:
-            st.session_state['schema_table'] = ''
-        user_input = st.session_state["schema_table"] 
-        if len(user_input) > 0:
-            data = StringIO(user_input)
-            df = pd.read_csv(data, sep="\t", header=None)
-            num_cols = df.shape[1]
-            df.columns = ["column_name", "column_description", "context"][:num_cols] 
-            df['column_name'] = df['column_name'].replace('', pd.NA)
-            df.dropna(subset=['column_name'], inplace=True)
-            df = df[df['column_name'].notnull()]
-            return {row['column_name']: {'column_description': row['column_description'], **({'context': row['context']} if 'context' in df.columns else {})} for _, row in df.iterrows()}
+    df = st.session_state["schema_table"]
+    num_cols = df.shape[1]
+    df.columns = ["column_name", "column_description", "context"][:num_cols] 
+    df['column_name'] = df['column_name'].replace('', pd.NA)
+    df.dropna(subset=['column_name'], inplace=True)
+    df = df[df['column_name'].notnull()]
+    return {row['column_name']: {'column_description': row['column_description'], **({'context': row['context']} if 'context' in df.columns else {})} for _, row in df.iterrows()}
+
+def input_email():
+    st.markdown("For variables with short descriptions, processing time will be about 1 minute per 100 pdf-pages per variable.")
+    st.session_state["email"] = st.text_input("Enter your email where you'd like to recieve the results:")
 
 def build_interface(tmp_dir):
     load_text()
@@ -198,11 +160,20 @@ def build_interface(tmp_dir):
     input_main_query()
     input_data_specs()
     st.divider()
+    if "output_format_options" not in st.session_state:
+        st.session_state["output_format_options"] = {
+            'Simply return GPT responses for each variable': 0,
+            'Sort by quotes; each quote will be one row': 1
+        }
     input_email()
     if 'schema_input_format' not in st.session_state:
         st.session_state['schema_input_format'] = 'Manual Entry'
     if 'is_test_run' not in st.session_state:
         st.session_state['is_test_run'] = True
+    if 'task_type' not in st.session_state:
+        st.session_state['task_type'] = 'Targeted inquiries'
+    if 'output_format' not in st.session_state:
+        st.session_state['output_format'] = list(st.session_state["output_format_options"].keys())[0]
 
 def email_results(docx_fname, recipient_email):
     message = Mail(
@@ -236,7 +207,9 @@ def get_user_inputs():
     main_query = st.session_state["main_query_input"]
     email = st.session_state["email"]
     column_specs = process_table()
-    return pdfs, main_query, column_specs, email
+    task_type = st.session_state["task_type"]
+    output_fmt = st.session_state["output_format_options"][st.session_state["output_format"]]
+    return get_analyzer(task_type, output_fmt, pdfs, main_query, column_specs, email)
 
 def display_output(docx_fname):
     with open(docx_fname, 'rb') as f:

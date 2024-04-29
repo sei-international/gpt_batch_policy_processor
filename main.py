@@ -28,15 +28,15 @@ def get_schema():
             schema[key] = value 
     return schema, main_query, False
 
-def extract_policy_doc_info(main_query, text_embeddings, text_chunks, col_embeddings, openai_apikey):
+def extract_policy_doc_info(gpt_analyzer, text_embeddings, text_chunks, var_embeddings, openai_apikey):
     policy_doc_data = {}
     client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
-    for col_name in col_embeddings:
-        col_embedding, col_desc, context = col_embeddings[col_name]["embedding"], col_embeddings[col_name]["column_description"], col_embeddings[col_name]["context"], 
+    for var_name in var_embeddings:
+        col_embedding, col_desc, context = var_embeddings[var_name]["embedding"], var_embeddings[var_name]["column_description"], var_embeddings[var_name]["context"], 
         top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding)
         top_text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
-        resp = query_gpt_for_column(main_query, col_name, col_desc, context, top_text_chunks, client, gpt_model)
-        policy_doc_data[col_name] = resp
+        resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, top_text_chunks, client, gpt_model)
+        policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
     return policy_doc_data
 
 def print_milestone(milestone_desc, last_milestone_time, extras={}, mins=True):
@@ -69,13 +69,13 @@ def log(new_content):
         data = {'files': {log_fname: {'content': updated_content}}}
         requests.patch(gist_url, headers=headers, data=json.dumps(data))
 
-def main(pdfs, main_query, column_specs, email, openai_apikey):
+def main(gpt_analyzer, openai_apikey):
     compare_output_bool = False
     output_doc = Document()
-    format_output_doc(output_doc, main_query, column_specs)
+    format_output_doc(output_doc, gpt_analyzer)
     total_num_pages = 0
     total_start_time = time.time()
-    for pdf in pdfs:
+    for pdf in gpt_analyzer.pdfs:
         pdf_path = get_resource_path(f"{pdf.replace('.pdf','')}.pdf")
         try:
             country_start_time = time.time()
@@ -88,33 +88,36 @@ def main(pdfs, main_query, column_specs, email, openai_apikey):
             # 2) Prepare embeddings to grab most relevant text excerpts for each column
             #schema, main_query, compare_output_bool = get_schema()
             openai_client, _, _ = new_openai_session(openai_apikey)
-            col_embeddings = embed_schema(openai_client, column_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
+            var_embeddings = embed_schema(openai_client, gpt_analyzer.variable_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
             # 3) Iterate through each column to grab relevant texts and query
-            policy_info = extract_policy_doc_info(main_query, pdf_embeddings, pdf_text_chunks, col_embeddings, openai_apikey)
+            policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, var_embeddings, openai_apikey)
             # 4) Output Results
-            output_results(output_doc, pdf_path, compare_output_bool, policy_info, get_resource_path)
+            output_results(gpt_analyzer, output_doc, pdf_path, policy_info)
 
             print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages})
         except Exception as e:
             print(f"Error for {pdf}: {e}")
-    output_metrics(output_doc, len(pdfs), time.time() - total_start_time, total_num_pages)
+    output_metrics(output_doc, len(gpt_analyzer.pdfs), time.time() - total_start_time, total_num_pages)
     output_fname = get_output_fname(get_resource_path)
     output_doc.save(output_fname)
-    email_results(output_fname, email)
+    email_results(output_fname, gpt_analyzer.email)
     display_output(output_fname)
 
 if __name__ == "__main__":
     try: 
         with TemporaryDirectory() as temp_dir:
-            build_interface(temp_dir)
-            if st.button("Run"):
-                pdfs, main_query, column_specs, email = get_user_inputs()  
-                with st.spinner('Generating output document...'):
-                    openai_apikey = st.secrets["openai_apikey"]
-                    log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> PDFS: {pdfs}, Main Query: {main_query}, Variables: {column_specs}, Email: {email}")
-                    main(pdfs, main_query, column_specs, email, openai_apikey)
-                st.success('Document generated!')
-                os.unlink(st.session_state["temp_zip_path"])
+            st.set_page_config(layout="wide")
+            _, centered_div, _ = st.columns([1, 3, 1])
+            with centered_div:
+                build_interface(temp_dir)
+                if st.button("Run"):
+                    gpt_analyzer = get_user_inputs()
+                    with st.spinner('Generating output document...'):
+                        openai_apikey = st.secrets["openai_apikey"]
+                        log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {gpt_analyzer}")
+                        main(gpt_analyzer, openai_apikey)
+                    st.success('Document generated!')
+                    os.unlink(st.session_state["temp_zip_path"])
     except Exception as e:
         log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {e}")
         

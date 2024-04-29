@@ -1,4 +1,5 @@
 from openai import OpenAI
+import json
 import os
 
 def new_openai_session(openai_apikey):
@@ -18,12 +19,15 @@ def fetch_column_info(gpt_client, gpt_model, query):
     response = gpt_client.chat.completions.create(
         model=gpt_model,
         messages=create_gpt_messages(query),
-        temperature=0
+        temperature=0,
+        response_format={ "type": "json_object" }
     )
-    return response.choices[0].message.content
+    return json.loads(response.choices[0].message.content)
 
-def query_gpt_for_column(main_query, col_nm, col_spec, context, relevant_texts, gpt_client, gpt_model):
+def query_gpt_for_column(gpt_analyzer, variable_name, col_spec, context, relevant_texts, gpt_client, gpt_model):
+    query_template = gpt_analyzer.main_query
     excerpts = '\n'.join(relevant_texts)
-    prompt = f"{main_query.format(variable_name=col_nm, variable_description=col_spec, context=context)} \n\n Text excerpts: {excerpts}"
-    prompt = f"From the following text excerpts, {prompt[0].lower()}{prompt[1:]}"
+    main_query = f"{query_template.format(variable_name=variable_name, variable_description=col_spec, context=context)} \n\n"
+    output_fmt_prompt = f"Return your response in the following json format: \n{gpt_analyzer.gpt_output_fmt()}"
+    prompt = f"From the following text excerpts, {main_query[0].lower()}{main_query[1:]}. \n\n {output_fmt_prompt} \n\n Text excerpts: {excerpts}"
     return fetch_column_info(gpt_client, gpt_model, prompt)

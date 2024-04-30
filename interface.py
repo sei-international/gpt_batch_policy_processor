@@ -1,9 +1,8 @@
 from analysis import get_analyzer, get_task_types
 
-from io import StringIO
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import NamedTemporaryFile
 import base64
 import os
 import pandas as pd
@@ -15,7 +14,7 @@ def load_text():
     <div style="background-color:#00D29A;padding:10px;border-radius:10px;margin-bottom:20px;">
         <img src="https://tr2ail.org/img/SEI-Master-Logo-Extended-Charcoal-RGB.cd475ad5.png" alt="Logo" style="height:50px;width:auto;float:right;">
         <h2 style="color:white;text-align:center;">GPT Batch Policy Processor (beta)</h2>
-        <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Models ChatGPT. 
+        <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Model ChatGPT.\n 
     The Tool allows the user to define specific queries to extract qualitative information.</h5>
         <br>
     </div>
@@ -41,7 +40,7 @@ def upload_zip(temp_dir):
     uploaded_zip = st.file_uploader("Zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
     if uploaded_zip is not None:
         st.success("""Zip-file uploaded successfully! \n
-Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.""", icon="✅")
+Please first run on a subset of PDF's to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.""", icon="✅")
         pdfs = []
         with NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
             temp_zip.write(uploaded_zip.getvalue())
@@ -55,12 +54,45 @@ Please first run on a subset of PDF's to fine-tune functionality. Repeatedly run
                     file_path = os.path.join(subdir_path, filename)
                     pdfs.append(file_path)  
         st.session_state["pdfs"] = pdfs
-        on = st.toggle('Run on subset', value=True, help="Do not turn this off until you are ready for your final run.", key="is_test_run")
-        if on:
+        if 'is_test_run' not in st.session_state:
+            st.session_state['is_test_run'] = True
+        checked = st.checkbox('Run on subset', value=True, help="Do not turn this off until you are ready for your final run.")
+        if checked:
             fnames = {os.path.basename(p): p for p in pdfs}
             first = os.path.basename(pdfs[0])      
-            selected_fnames = st.multiselect("Select particular subfiles to run on", fnames.keys(), default=[first])
-            st.session_state["selected_pdfs"] = [fnames[selected_fname] for selected_fname in selected_fnames]
+            selected_fnames = st.multiselect("Select 1-3 subfiles to run on", fnames.keys(), default=[first], max_selections=3)
+            st.session_state['selected_pdfs'] = [fnames[selected_fname] for selected_fname in selected_fnames]
+        else:
+            st.markdown("After fine-tuning the main query template and variable definitions below, you may run the "
+                        "Tool for all policy documents of interest. Please contact william.babis@sei.org for access.")
+            passcode = st.text_input("Enter passcode")
+            if passcode:
+                if passcode == st.secrets["access_password"]:
+                    st.session_state['is_test_run'] = False
+                    st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
+                else:
+                    st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
+
+        # with div_left:
+        #     # Refer directly to session state for the checkbox value
+        #     st.session_state['is_test_run'] = st.checkbox('Run on subset', value=True,
+        #                     disabled=st.session_state['accesss_restricted'], 
+        #                     help="Do not turn this off until you are ready for your final run.")
+        #     if st.session_state['is_test_run']:
+        #         fnames = {os.path.basename(p): p for p in pdfs}
+        #         first = os.path.basename(pdfs[0])      
+        #         selected_fnames = st.multiselect("Select 1-3 subfiles to run on", fnames.keys(), default=[first], max_selections=3)
+        #         st.session_state['selected_pdfs'] = [fnames[selected_fname] for selected_fname in selected_fnames]
+        # with div_right:
+        #     with st.popover("Run on all PDF's (restricted access)"):
+        #         st.markdown("After fine-tuning the main query template and variable definitions below, you may run the "
+        #                     "Tool for all policy documents of interest. Please contact william.babis@sei.org for access.")
+        #         passcode = st.text_input("Enter passcode")
+        #         if passcode == st.secrets["access_password"]:
+        #             st.session_state['accesss_restricted'] = False
+        #             st.session_state['is_test_run'] = False
+
+                    
         
 def input_main_query():
     st.markdown("")
@@ -99,6 +131,17 @@ def populate_with_SDGs():
     ])
     st.session_state["variables_df"] = sdg_df
 
+def populate_with_just_transition():
+    just_transition_df = pd.DataFrame([
+        {"variable_name": "gender", "variable_description": "", "context": ""},
+        {"variable_name": "jobs", "variable_description": "", "context": ""},
+        {"variable_name": "local communities and co-benefits", "variable_description": "", "context": ""},
+        {"variable_name": "indigenous peoples", "variable_description": "", "context": ""},
+        {"variable_name": "prior informed consent", "variable_description": "", "context": ""},
+        {"variable_name": "human rights", "variable_description": "", "context": ""}
+    ])
+    st.session_state["variables_df"] = just_transition_df
+
 def clear_variables():
     empty_df = pd.DataFrame([{"variable_name": "", "variable_description": "", "context": ""}])
     st.session_state["variables_df"] = empty_df
@@ -120,11 +163,13 @@ def input_data_specs():
     col_order = ["variable_name", "variable_description", "context"]
     variables_df = st.session_state["variables_df"]
     st.session_state["schema_table"]  = st.data_editor(variables_df, num_rows="dynamic", use_container_width=True, hide_index=True, column_order=col_order)
-    _, div3, corner_div = st.columns([2, 1, 1])
-    with div3:
+    btn1, btn2, btn3 = st.columns([1, 1, 1])
+    with btn1:
         st.button("Clear", on_click=clear_variables)
-    with corner_div:
+    with btn2:
         st.button("Populate with SDGs", on_click=populate_with_SDGs)
+    with btn3:
+        st.button("Use Just-Transition Themes", on_click=populate_with_just_transition, use_container_width=True)
     with st.expander("Advanced settings"):
         st.selectbox(
             'Optional: specify the overall operation type',
@@ -168,8 +213,6 @@ def build_interface(tmp_dir):
     input_email()
     if 'schema_input_format' not in st.session_state:
         st.session_state['schema_input_format'] = 'Manual Entry'
-    if 'is_test_run' not in st.session_state:
-        st.session_state['is_test_run'] = True
     if 'task_type' not in st.session_state:
         st.session_state['task_type'] = 'Targeted inquiries'
     if 'output_format' not in st.session_state:

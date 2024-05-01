@@ -9,28 +9,33 @@ import pandas as pd
 import streamlit as st
 import zipfile
 
-def load_text():
+def load_header():
     html_temp = """
     <div style="background-color:#00D29A;padding:10px;border-radius:10px;margin-bottom:20px;">
         <img src="https://tr2ail.org/img/SEI-Master-Logo-Extended-Charcoal-RGB.cd475ad5.png" alt="Logo" style="height:50px;width:auto;float:right;">
         <h2 style="color:white;text-align:center;">GPT Batch Policy Processor (beta)</h2>
-        <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Model ChatGPT.\n 
-    The Tool allows the user to define specific queries to extract qualitative information.</h5>
+        <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Model ChatGPT.\n
+Users can define specific queries to extract targeted information from policies.</h5>
         <br>
     </div>
     """
     st.markdown(html_temp, unsafe_allow_html=True)
-    #st.title("GPT Batch Policy Processor (beta)")
+
+def load_text():
     instructions = """
 ## How to use
 Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 
-- **Step 0:** IF YOU ARE A NEW USER, FIRST RUN A TEST ON ONE OR TWO DOCUMENTS.
+- **Step 0:** IF YOU ARE A NEW USER, FIRST TEST FUNCTIONALITY ON 1-3 DOCUMENTS.
 - **Step 1:** Create a ZIP file containing all the policy documents you want to analyze. Beta version only accepts pdf documents, no subfolders allowed.
 - **Step 2:** Upload the zipfile in the box below.
-- **Step 3:** Specify a main query template (see specific instructions and template below).
-- **Step 4:** For multiquery search, specify query variables (see specific instructions below).
-- **Step 5:** hit “Run”.
-- **Step 6:** DO NOT CLOSE SESSION until you have received or downloaded results."""
+- **Step 3:** Select 1-3 PDFs to analyze at first.
+- **Step 4:** Specify a main query template (see specific instructions and template below).
+- **Step 5:** For multiquery search, specify query variables (see specific instructions below).
+- **Step 6:** Hit “Run”. DO NOT CLOSE SESSION until you have received or downloaded results.
+- **Step 7:** Assess results, change parameters as needed, and repeat steps 1-7.
+- **Step 8:** Once results are satisfactory, contact william.babis@sei.org for access token.
+- **Step 9:** Re-run once more on all policy documents."""
+
     st.markdown(instructions)
     #st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
     st.markdown("""## Submit your processing request""")
@@ -56,11 +61,15 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
         st.session_state["pdfs"] = pdfs
         if 'is_test_run' not in st.session_state:
             st.session_state['is_test_run'] = True
+        if 'max_files' not in st.session_state:
+            st.session_state['max_files'] = 3
+        if 'file_select_label' not in st.session_state:
+            st.session_state['file_select_label'] = "Select 1-3 subfiles to run on"
         checked = st.checkbox('Run on subset', value=True, help="Do not turn this off until you are ready for your final run.")
         if checked:
             fnames = {os.path.basename(p): p for p in pdfs}
             first = os.path.basename(pdfs[0])      
-            selected_fnames = st.multiselect("Select 1-3 subfiles to run on", fnames.keys(), default=[first], max_selections=3)
+            selected_fnames = st.multiselect(st.session_state['file_select_label'], fnames.keys(), default=[first], max_selections=st.session_state["max_files"])
             st.session_state['selected_pdfs'] = [fnames[selected_fname] for selected_fname in selected_fnames]
         else:
             st.markdown("After fine-tuning the main query template and variable definitions below, you may run the "
@@ -69,30 +78,12 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
             if passcode:
                 if passcode == st.secrets["access_password"]:
                     st.session_state['is_test_run'] = False
+                    st.session_state['max_files'] = None
+                    st.session_state['file_select_label'] = "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
                     st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
                 else:
                     st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
 
-        # with div_left:
-        #     # Refer directly to session state for the checkbox value
-        #     st.session_state['is_test_run'] = st.checkbox('Run on subset', value=True,
-        #                     disabled=st.session_state['accesss_restricted'], 
-        #                     help="Do not turn this off until you are ready for your final run.")
-        #     if st.session_state['is_test_run']:
-        #         fnames = {os.path.basename(p): p for p in pdfs}
-        #         first = os.path.basename(pdfs[0])      
-        #         selected_fnames = st.multiselect("Select 1-3 subfiles to run on", fnames.keys(), default=[first], max_selections=3)
-        #         st.session_state['selected_pdfs'] = [fnames[selected_fname] for selected_fname in selected_fnames]
-        # with div_right:
-        #     with st.popover("Run on all PDF's (restricted access)"):
-        #         st.markdown("After fine-tuning the main query template and variable definitions below, you may run the "
-        #                     "Tool for all policy documents of interest. Please contact william.babis@sei.org for access.")
-        #         passcode = st.text_input("Enter passcode")
-        #         if passcode == st.secrets["access_password"]:
-        #             st.session_state['accesss_restricted'] = False
-        #             st.session_state['is_test_run'] = False
-
-                    
         
 def input_main_query():
     st.markdown("")
@@ -261,3 +252,17 @@ def display_output(docx_fname):
                    data=binary_file,
                    file_name="results.docx",
                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+def about_tab():
+    text = """
+## Terms of use
+**Open access to the data sets** \n
+The GPT-Batch Policy Processor (beta) tool has been published on May 1st, 2024.
+\n
+**The GPT-Batch Policy Processor (beta) tool** \n
+ Babis, William / Miquel Munoz-Cabre / Adis Dzebo (2024): GPT-Batch Policy Processor (beta). Stockholm Environment Institute (SEI).
+\n
+**Referring to GPT-Batch Policy Processor (beta) tool analysis** \n
+ The Stockholm Environment Institute (SEI) hold the copyright of the GPT-Batch Policy Processor (beta) tool. It is licensed under Creative Commons and you are free to copy and redistribute material derived from the  GPT-Batch Policy Processor (beta) tool by following the guideline of the Creative Commons License. CC BY-ND (full attribution, no derivatives).
+"""
+    st.markdown(text)

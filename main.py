@@ -1,4 +1,4 @@
-from interface import build_interface, display_output, email_results, get_user_inputs
+from interface import about_tab, build_interface, display_output, email_results, get_user_inputs, load_header
 from query_gpt import new_openai_session, query_gpt_for_column
 from read_pdf import extract_text_chunks_from_pdf
 from relevant_excerpts import generate_all_embeddings, embed_schema, find_top_relevant_texts
@@ -107,17 +107,22 @@ if __name__ == "__main__":
     try: 
         with TemporaryDirectory() as temp_dir:
             st.set_page_config(layout="wide")
+            load_header()
             _, centered_div, _ = st.columns([1, 3, 1])
             with centered_div:
-                build_interface(temp_dir)
-                if st.button("Run"):
-                    gpt_analyzer = get_user_inputs()
-                    with st.spinner('Generating output document...'):
-                        openai_apikey = st.secrets["openai_apikey"]
-                        log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {gpt_analyzer}")
-                        main(gpt_analyzer, openai_apikey)
-                    st.success('Document generated!')
-                    os.unlink(st.session_state["temp_zip_path"])
+                tab1, tab2 = st.tabs(["Tool", "About"])
+                with tab1:
+                    build_interface(temp_dir)
+                    if st.button("Run"):
+                        gpt_analyzer = get_user_inputs()
+                        with st.spinner('Generating output document...'):
+                            openai_apikey = st.secrets["openai_apikey"]
+                            log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {gpt_analyzer}")
+                            main(gpt_analyzer, openai_apikey)
+                        st.success('Document generated!')
+                        os.unlink(st.session_state["temp_zip_path"])
+                with tab2:
+                    about_tab()
     except Exception as e:
         log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {e}")
         

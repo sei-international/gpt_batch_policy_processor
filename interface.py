@@ -32,7 +32,7 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 4:** Specify a main query template (see specific instructions and template below).
 - **Step 5:** For multiquery search, specify query variables (see specific instructions below).
 - **Step 6:** Hit “Run”. DO NOT CLOSE SESSION until you have received or downloaded results.
-- **Step 7:** Assess results, change parameters as needed, and repeat steps 1-7.
+- **Step 7:** Assess results, change parameters as needed, and repeat steps 1-6.
 - **Step 8:** Once results are satisfactory, contact william.babis@sei.org for access token.
 - **Step 9:** Re-run once more on all policy documents."""
 

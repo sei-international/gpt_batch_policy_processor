@@ -13,9 +13,9 @@ def load_header():
     html_temp = """
     <div style="background-color:#00D29A;padding:10px;border-radius:10px;margin-bottom:20px;">
         <img src="https://tr2ail.org/img/SEI-Master-Logo-Extended-Charcoal-RGB.cd475ad5.png" alt="Logo" style="height:50px;width:auto;float:right;">
-        <h2 style="color:white;text-align:center;">GPT Batch Policy Processor (beta)</h2>
+        <h2 style="color:white;text-align:center;">AI Policy Reader (beta)</h2>
         <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Model ChatGPT.\n
-Users can define specific queries to extract targeted information from policies.</h5>
+Users can define specific queries to extract targeted information from any collection of PDF's.</h5>
         <br>
     </div>
     """
@@ -33,7 +33,7 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 5:** For multiquery search, specify query variables (see specific instructions below).
 - **Step 6:** Hit “Run”. DO NOT CLOSE SESSION until you have received or downloaded results.
 - **Step 7:** Assess results, change parameters as needed, and repeat steps 1-6.
-- **Step 8:** Once results are satisfactory, contact william.babis@sei.org for access token.
+- **Step 8:** Once results are satisfactory, contact william.babis@sei.org for access to full batch-processing functionality.
 - **Step 9:** Re-run once more on all policy documents."""
 
     st.markdown(instructions)
@@ -145,7 +145,7 @@ def input_data_specs():
            'would be *[SDG1: End poverty in all its forms everywhere, SDG2: End hunger, achieve food security..]*. '
            'You may also click the "Populate with SDGs" button below.')
     st.markdown(hdr)
-    st.markdown("**Type-in variable details or copy-and-paste from an excel spreadsheetc (no headers).**")
+    st.markdown("**Type-in variable details or copy-and-paste from an excel spreadsheet (3 columns, no headers).**")
     if "variables_df" not in st.session_state:
         st.session_state["variables_df"] = pd.DataFrame([
             {"variable_name": "SDG 1", "variable_description": "End poverty in all its forms everywhere.", "context": ""},
@@ -260,7 +260,7 @@ def about_tab():
 The GPT-Batch Policy Processor (beta) tool has been published on May 1st, 2024.
 \n
 **The GPT-Batch Policy Processor (beta) tool** \n
-Babis, William / Munoz-Cabre, Miquel / Dzebo, Adis / Martelo, Camilo / Salzano, Cora / Torres Morales, Eileen / Arsadita, Ferosa (2024): GPT-Batch Policy Processor (beta). Stockholm Environment Institute (SEI).
+Babis, William / Munoz Cabre, Miquel / Dzebo, Adis / Martelo, Camilo / Salzano, Cora / Torres Morales, Eileen / Arsadita, Ferosa (2024): GPT-Batch Policy Processor (beta). Stockholm Environment Institute (SEI).
 \n
 **Referring to GPT-Batch Policy Processor (beta) tool analysis** \n
  The Stockholm Environment Institute (SEI) hold the copyright of the GPT-Batch Policy Processor (beta) tool. It is 

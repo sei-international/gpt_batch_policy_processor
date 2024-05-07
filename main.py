@@ -28,12 +28,12 @@ def get_schema():
             schema[key] = value 
     return schema, main_query, False
 
-def extract_policy_doc_info(gpt_analyzer, text_embeddings, text_chunks, var_embeddings, openai_apikey):
+def extract_policy_doc_info(gpt_analyzer, text_embeddings, text_chunks, var_embeddings, num_excerpts, openai_apikey):
     policy_doc_data = {}
     client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
     for var_name in var_embeddings:
         col_embedding, col_desc, context = var_embeddings[var_name]["embedding"], var_embeddings[var_name]["column_description"], var_embeddings[var_name]["context"], 
-        top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding)
+        top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding, num_excerpts)
         top_text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
         resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, top_text_chunks, client, gpt_model)
         policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
@@ -80,7 +80,8 @@ def main(gpt_analyzer, openai_apikey):
         try:
             country_start_time = time.time()
             # 1) read pdf
-            text_chunks, num_pages = extract_text_chunks_from_pdf(pdf_path)            
+            text_chunk_size = gpt_analyzer.get_chunk_size()
+            text_chunks, num_pages = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)            
             total_num_pages += num_pages
             openai_client, _, _ = new_openai_session(openai_apikey)
             pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path)
@@ -90,7 +91,8 @@ def main(gpt_analyzer, openai_apikey):
             openai_client, _, _ = new_openai_session(openai_apikey)
             var_embeddings = embed_schema(openai_client, gpt_analyzer.variable_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
             # 3) Iterate through each column to grab relevant texts and query
-            policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, var_embeddings, openai_apikey)
+            num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
+            policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, var_embeddings, num_excerpts, openai_apikey)
             # 4) Output Results
             output_results(gpt_analyzer, output_doc, pdf_path, policy_info)
 

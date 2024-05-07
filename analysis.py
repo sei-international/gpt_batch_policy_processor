@@ -15,8 +15,11 @@ class GPTAnalyzer:
 
     def format_gpt_response(self, resp):
         pass
+    
+    def get_chunk_size(self):
+        return 500
 
-    def output_results(self, policy_info):
+    def get_results(self, policy_info):
         var_names = list(policy_info.keys())
         gpt_row = []
         for var_name, var_val in policy_info.items():
@@ -30,6 +33,9 @@ class GPTAnalyzer:
 
     def get_output_headers(self):
         return ["Variable Name", "GPT Response"]
+    
+    def get_num_excerpts(self, num_pages):
+        return int(20 * (num_pages / (100.0)))
 
 class DefaultAnalyzer(GPTAnalyzer):
     def __init__(self, pdfs, main_query, variable_specs, email, output_fmt):
@@ -46,46 +52,55 @@ class QuoteAnalyzer(GPTAnalyzer):
         super().__init__(pdfs, main_query, variable_specs, email, output_fmt) 
 
     def gpt_output_fmt(self):
-        if self.output_fmt:
-            return "{'list_of_quotes': [{'quote': '...', 'page_number': '...', 'explanation': '...'}, ...]}"
-        else:
-            return "{'value': '...',  'relevant_page_numbers': '...'}"
+        return "{'list_of_quotes': [{'quote': '...', 'page_number': '...', 'explanation': '...'}, ...]}"
     
     def format_gpt_response(self, resp):
-        if self.output_fmt:
-            return resp["list_of_quotes"]
-        else:
-            return resp['value']
+        return resp["list_of_quotes"]
 
-    def output_results(self, policy_info):
-        def is_similar_quote(q1, q2):
-            q1, q2 = q1.lower().strip(), q2.lower().strip()
-            return q1 in q2 or q2 in q1 or q1==q2 or q1 is q2
-        temp_quotes = []
-        all_quotes = {}
-        for var_name, quotes_json in policy_info.items():
-            for quote_json in quotes_json:
-                curr_quote = f"{quote_json['quote']} [page {quote_json['page_number']}]"
-                found_similar = False
-                for i, (existing_quote, names) in enumerate(temp_quotes):
-                    if is_similar_quote(curr_quote, existing_quote):
-                        temp_quotes[i] = (existing_quote, f"{names}, {var_name}")
-                        found_similar = True
-                        break
-                if not found_similar:
-                    temp_quotes.append((curr_quote, var_name))
-        for quote, names in temp_quotes:
-            all_quotes[quote] = names    
-        return list(all_quotes.keys()), list(all_quotes.values())  
-    
+    def get_results(self, policy_info):
+        if self.output_fmt == 0:
+            all_quotes = []
+            for var_name, quotes_json in policy_info.items():
+                quotes_for_var = ""
+                for quote_json in quotes_json:
+                    quotes_for_var += f"{quote_json['quote']} [page {quote_json['page_number']}]. \n"
+                all_quotes.append(quotes_for_var)
+            return list(policy_info.keys()), all_quotes
+        else:
+            def is_similar_quote(q1, q2):
+                q1, q2 = q1.lower().strip(), q2.lower().strip()
+                return q1 in q2 or q2 in q1 or q1==q2 or q1 is q2
+            temp_quotes = []
+            all_quotes = {}
+            for var_name, quotes_json in policy_info.items():
+                for quote_json in quotes_json:
+                    curr_quote = f"{quote_json['quote']} [page {quote_json['page_number']}]"
+                    found_similar = False
+                    for i, (existing_quote, names) in enumerate(temp_quotes):
+                        if is_similar_quote(curr_quote, existing_quote):
+                            temp_quotes[i] = (existing_quote, f"{names}, {var_name}")
+                            found_similar = True
+                            break
+                    if not found_similar:
+                        temp_quotes.append((curr_quote, var_name))
+            for quote, names in temp_quotes:
+                all_quotes[quote] = names    
+            return list(all_quotes.keys()), list(all_quotes.values())  
+        
     def get_output_headers(self):
         return ["Quote", "Related Variables"]
+    
+    def get_chunk_size(self):
+        return 200
+        
+    def get_num_excerpts(self, num_pages):
+        return int(30 * (num_pages / (100.0)))
 
 
 def get_task_types():
     return {
-        "Targeted inquiries": DefaultAnalyzer, 
-        "Quote extraction": QuoteAnalyzer
+        "Quote extraction": QuoteAnalyzer,
+        "Targeted inquiries": DefaultAnalyzer
     }
 
 def get_analyzer(task_type, output_fmt, pdfs, main_query, variable_specs, email):

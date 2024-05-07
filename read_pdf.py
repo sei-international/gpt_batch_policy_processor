@@ -1,7 +1,7 @@
 import fitz 
 import re
 
-def extract_text_chunks_from_pdf(pdf_path, max_chunk_size=800):
+def extract_text_chunks_from_pdf(pdf_path, max_chunk_size):
     text_chunks = []
     curr_chunk = ""
     curr_page = 1

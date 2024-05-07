@@ -88,7 +88,7 @@ def format_output_doc(output_doc, gpt_analyzer):
         print(f"Error (format_output_doc()): {e}")
 
 def output_results(gpt_analyzer, output_doc, pdf_path, policy_info):
-    row_ids, rows = gpt_analyzer.output_results(policy_info)
+    row_ids, rows = gpt_analyzer.get_results(policy_info)
     output_headers = gpt_analyzer.get_output_headers()
     create_word_table(output_doc, pdf_path, row_ids, rows, output_headers)
 

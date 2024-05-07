@@ -96,8 +96,7 @@ def input_main_query():
     #st.text(qtemplate_instructions)
     qtemplate = ('Extract any quote that includes a national action or plan that '
                  'addresses “{variable_name}” which we define as “{variable_description}”. ' 
-                 'Only include direct quotation with the corresponding page number(s) with a brief explanation of the context of '
-                 'this quote within the text. It is very important not to hallucinate.')
+                 'Only include direct quotation with the corresponding page number(s).')
     st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)
 
 def populate_with_SDGs():
@@ -134,7 +133,7 @@ def populate_with_just_transition():
     st.session_state["variables_df"] = just_transition_df
 
 def clear_variables():
-    empty_df = pd.DataFrame([{"variable_name": "", "variable_description": "", "context": ""}])
+    empty_df = pd.DataFrame([{"variable_name": None, "variable_description": None, "context": None}])
     st.session_state["variables_df"] = empty_df
 
 def input_data_specs():
@@ -153,7 +152,8 @@ def input_data_specs():
         ])
     col_order = ["variable_name", "variable_description", "context"]
     variables_df = st.session_state["variables_df"]
-    st.session_state["schema_table"]  = st.data_editor(variables_df, num_rows="dynamic", use_container_width=True, hide_index=True, column_order=col_order)
+    st.session_state["schema_table"] = st.data_editor(variables_df, num_rows="dynamic", use_container_width=True, 
+                   hide_index=True, column_order=col_order)
     btn1, btn2, btn3 = st.columns([1, 1, 1])
     with btn1:
         st.button("Clear", on_click=clear_variables)
@@ -179,6 +179,7 @@ def input_data_specs():
 
 def process_table():
     df = st.session_state["schema_table"]
+    df = df.fillna("")
     num_cols = df.shape[1]
     df.columns = ["column_name", "column_description", "context"][:num_cols] 
     df['column_name'] = df['column_name'].replace('', pd.NA)
@@ -191,6 +192,8 @@ def input_email():
     st.session_state["email"] = st.text_input("Enter your email where you'd like to recieve the results:")
 
 def build_interface(tmp_dir):
+    if 'task_type' not in st.session_state:
+        st.session_state['task_type'] = 'Quote Extraction'
     load_text()
     upload_zip(tmp_dir)
     input_main_query()
@@ -202,10 +205,10 @@ def build_interface(tmp_dir):
             'Sort by quotes; each quote will be one row': 1
         }
     input_email()
+    if 'pdfs' not in st.session_state:
+        st.session_state['pdfs'] = 'no_upload'
     if 'schema_input_format' not in st.session_state:
         st.session_state['schema_input_format'] = 'Manual Entry'
-    if 'task_type' not in st.session_state:
-        st.session_state['task_type'] = 'Targeted inquiries'
     if 'output_format' not in st.session_state:
         st.session_state['output_format'] = list(st.session_state["output_format_options"].keys())[0]
 

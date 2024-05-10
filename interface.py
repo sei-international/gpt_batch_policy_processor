@@ -93,11 +93,13 @@ def input_main_query():
                               'of variable specification listed in the table below (i.e. [SDG1: End poverty in all '
                               'its forms everywhere, SDG2: End hunger, achieve food security..]). '
                               'Do not include any single quotation marks or apostrophes.') 
-    #st.text(qtemplate_instructions)
-    qtemplate = ('Extract any quote that includes a national action or plan that '
-                 'addresses “{variable_name}” which we define as “{variable_description}”. ' 
+    qtemplate = ('Extract any quote that  addresses “{variable_name}” which we define as “{variable_description}”. ' 
                  'Only include direct quotation with the corresponding page number(s).')
     st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)
+    qtemplate_tips = ('**Some Query Design Tips:** Be clear and concise. Do not include unneeded background information.'
+                              ' Start your query with a verb, an action word, or a command i.e. ("extract", "find", "determine").'
+                              ' Do not include any single quotation marks or apostrophes.') 
+    st.markdown(qtemplate_tips)
 
 def populate_with_SDGs():
     sdg_df = pd.DataFrame([

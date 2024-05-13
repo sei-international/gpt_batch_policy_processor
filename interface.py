@@ -26,7 +26,7 @@ def load_text():
 ## How to use
 Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 
 - **Step 0:** IF YOU ARE A NEW USER, FIRST TEST FUNCTIONALITY ON 1-3 DOCUMENTS.
-- **Step 1:** Create a ZIP file containing all the policy documents you want to analyze. Beta version only accepts pdf documents, no subfolders allowed.
+- **Step 1:** Create a folder containing all the policy documents you want to analyze; then compress the folder into a zip-file. Beta version only accepts pdf documents, no subfolders allowed.
 - **Step 2:** Upload the zipfile in the box below.
 - **Step 3:** Select 1-3 PDFs to analyze at first.
 - **Step 4:** Specify a main query template (see specific instructions and template below).
@@ -41,8 +41,8 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
     st.markdown("""## Submit your processing request""")
 
 def upload_zip(temp_dir):
-    st.subheader("I. Upload ZIP-file of PDF's")
-    uploaded_zip = st.file_uploader("Zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
+    st.subheader("I. Upload Zipfile of PDF's")
+    uploaded_zip = st.file_uploader("Compress a folder with your documents into a zip-file. The zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
     if uploaded_zip is not None:
         st.success("""Zip-file uploaded successfully! \n
 Please first run on a subset of PDF's to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.""", icon="✅")
@@ -93,8 +93,8 @@ def input_main_query():
                               'of variable specification listed in the table below (i.e. [SDG1: End poverty in all '
                               'its forms everywhere, SDG2: End hunger, achieve food security..]). '
                               'Do not include any single quotation marks or apostrophes.') 
-    qtemplate = ('Extract any quote that  addresses “{variable_name}” which we define as “{variable_description}”. ' 
-                 'Only include direct quotation with the corresponding page number(s).')
+    qtemplate = ('Extract any quote that addresses “{variable_name}” which we define as “{variable_description}”. ' 
+                 'Only include direct quotations with the corresponding page number(s).')
     st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)
     qtemplate_tips = ('**Some Query Design Tips:** Be clear and concise. Do not include unneeded background information.'
                               ' Start your query with a verb, an action word, or a command i.e. ("extract", "find", "determine").'

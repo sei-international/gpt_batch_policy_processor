@@ -59,9 +59,9 @@ def fetch_gist_content(gist_url, headers, log_fname):
 
 def log(new_content):
     github_token = st.secrets["github_token"]
-    log_fname = 'streamlit_log'
+    log_fname = 'log'
     gist_base_url = 'https://api.github.com/gists'
-    gist_url = f'{gist_base_url}/954469cdf76d2acab3d0cc54203dd43f'
+    gist_url = f'{gist_base_url}/23d6839ab3d875f059c9fc9529b3aea1'
     headers = {'Authorization': f'token {github_token}', 'Accept': 'application/vnd.github.v3+json'}
     current_content = fetch_gist_content(gist_url, headers, log_fname)
     if current_content is not None:

@@ -91,14 +91,12 @@ def input_main_query():
     qtemplate_instructions = ('Modify the generalized template query below. Please note curly brackets indicate '
                               'keywords. *{variable_name}*, *{variable_description}*, and *{context}* will be replaced by each '
                               'of variable specification listed in the table below (i.e. [SDG1: End poverty in all '
-                              'its forms everywhere, SDG2: End hunger, achieve food security..]). '
-                              'Do not include any single quotation marks or apostrophes.') 
+                              'its forms everywhere, SDG2: End hunger, achieve food security..]).') 
     qtemplate = ('Extract any quote that addresses “{variable_name}” which we define as “{variable_description}”. ' 
                  'Only include direct quotations with the corresponding page number(s).')
     st.session_state["main_query_input"] = st.text_area(qtemplate_instructions, value=qtemplate, height=150)
     qtemplate_tips = ('**Some Query Design Tips:** Be clear and concise. Do not include unneeded background information.'
-                              ' Start your query with a verb, an action word, or a command i.e. ("extract", "find", "determine").'
-                              ' Do not include any single quotation marks or apostrophes.') 
+                              ' Start your query with a verb, an action word, or a command i.e. ("extract", "find", "determine").') 
     st.markdown(qtemplate_tips)
 
 def populate_with_SDGs():
@@ -248,6 +246,8 @@ def get_user_inputs():
     column_specs = process_table()
     task_type = st.session_state["task_type"]
     output_fmt = st.session_state["output_format_options"][st.session_state["output_format"]]
+    print(main_query)
+    print(column_specs)
     return get_analyzer(task_type, output_fmt, pdfs, main_query, column_specs, email)
 
 def display_output(docx_fname):

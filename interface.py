@@ -43,6 +43,7 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 def upload_zip(temp_dir):
     st.subheader("I. Upload Zipfile of PDF's")
     uploaded_zip = st.file_uploader("Compress a folder with your documents into a zip-file. The zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.", type="zip")
+    st.markdown("*Please note: uploaded documents will be procesed by OpenAI and may be used to train futher models. If you are concerned about the confidentiality of your documents, please contact us before use.*")
     if uploaded_zip is not None:
         st.success("""Zip-file uploaded successfully! \n
 Please first run on a subset of PDF's to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.""", icon="✅")
@@ -246,8 +247,6 @@ def get_user_inputs():
     column_specs = process_table()
     task_type = st.session_state["task_type"]
     output_fmt = st.session_state["output_format_options"][st.session_state["output_format"]]
-    print(main_query)
-    print(column_specs)
     return get_analyzer(task_type, output_fmt, pdfs, main_query, column_specs, email)
 
 def display_output(docx_fname):

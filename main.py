@@ -11,6 +11,7 @@ import os
 import requests
 import streamlit as st
 import time
+import traceback
 
 
 def get_resource_path(relative_path):
@@ -33,7 +34,7 @@ def extract_policy_doc_info(gpt_analyzer, text_embeddings, text_chunks, var_embe
     client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
     for var_name in var_embeddings:
         col_embedding, col_desc, context = var_embeddings[var_name]["embedding"], var_embeddings[var_name]["column_description"], var_embeddings[var_name]["context"], 
-        top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding, num_excerpts)
+        top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding, num_excerpts, var_name)
         top_text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
         resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, top_text_chunks, client, gpt_model)
         policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
@@ -99,6 +100,7 @@ def main(gpt_analyzer, openai_apikey):
             print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages})
         except Exception as e:
             print(f"Error for {pdf}: {e}")
+            print(traceback.format_exc())
     output_metrics(output_doc, len(gpt_analyzer.pdfs), time.time() - total_start_time, total_num_pages)
     output_fname = get_output_fname(get_resource_path)
     output_doc.save(output_fname)
@@ -127,4 +129,5 @@ if __name__ == "__main__":
                     about_tab()
     except Exception as e:
         log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {e}")
+        log(traceback.format_exc())
         

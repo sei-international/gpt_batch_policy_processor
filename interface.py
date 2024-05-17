@@ -168,15 +168,38 @@ def input_data_specs():
             list(get_task_types().keys()),
             key='task_type'
         )
+        var_names = list(st.session_state["schema_table"]["variable_name"].to_list())
         if st.session_state["task_type"] == "Quote extraction":
             options = st.session_state["output_format_options"]
             if 'output_format' not in st.session_state:
-                st.session_state['output_format'] = list(options.keys())[0]
+                st.session_state['output_format'] = list(options.keys())[1]
             st.selectbox(
                 'Optional: select format of output table for each document',
                 options.keys(),
                 key='output_format'
             )
+            output_fmt_selected = st.session_state["output_format_options"][st.session_state["output_format"]]
+            if output_fmt_selected == "quotes_sorted_and_labelled":
+                subcat_div1, subcat_div2 = st.columns([1, 1])
+                with subcat_div1:
+                    subcat1 = st.text_input("1st categorization label:", value="SDG Targets", key="subcat1_label")
+                with subcat_div2:
+                    subcat2 = st.text_input("2nd categorization label (optional):", value="Climate Actions", key="subcat2_label")
+                subcats_df_dic = {'variable_name': var_names, st.session_state["subcat1_label"]: [None] * len(var_names)}
+                if subcat1:
+                    if subcat2:
+                        subcats_df_dic[st.session_state["subcat2_label"]] = [None] * len(var_names)
+                    subcats_df = pd.DataFrame(subcats_df_dic)
+                    st.session_state["subcategories_df"] = st.data_editor(subcats_df, hide_index=True,
+                                                                        disabled=["variable_name"], use_container_width=True)
+                else:
+                    st.warning("Please enter at least one subcategorization label or choose a different output format.")
+        elif st.session_state["task_type"] == "Custom output format":
+            st.session_state["custom_output_fmt"] = st.text_area("Enter your custom output instructions", height=100)
+            st.markdown("Optional: include specific output instructions for each variable using {output_detail} above")
+            init_output_detail_df = pd.DataFrame({'variable_name': var_names, "output_detail": [None] * len(var_names)})
+            st.session_state["output_detail_df"] = st.data_editor(init_output_detail_df, hide_index=True,
+                                                                  disabled=["variable_name"], use_container_width=True)
 
 def process_table():
     df = st.session_state["schema_table"]
@@ -194,24 +217,30 @@ def input_email():
 
 def build_interface(tmp_dir):
     if 'task_type' not in st.session_state:
-        st.session_state['task_type'] = 'Quote Extraction'
+        st.session_state['task_type'] = 'Quote extraction'
     load_text()
     upload_zip(tmp_dir)
     input_main_query()
-    input_data_specs()
-    st.divider()
     if "output_format_options" not in st.session_state:
         st.session_state["output_format_options"] = {
-            'Simply return GPT responses for each variable': 0,
-            'Sort by quotes; each quote will be one row': 1
+            'Sort by quotes; each quote will be one row': 'quotes_sorted',
+            'Simply return GPT responses for each variable': 'quotes_gpt_resp',
+            'Sort by quotes labelled with variable_name and subcategories': 'quotes_sorted_and_labelled',
+            'Return list of quotes per variable': 'quotes_structured',
         }
-    input_email()
     if 'pdfs' not in st.session_state:
         st.session_state['pdfs'] = 'no_upload'
     if 'schema_input_format' not in st.session_state:
         st.session_state['schema_input_format'] = 'Manual Entry'
     if 'output_format' not in st.session_state:
-        st.session_state['output_format'] = list(st.session_state["output_format_options"].keys())[0]
+        st.session_state['output_format'] = list(st.session_state["output_format_options"].keys())[1]
+    if "custom_output_fmt" not in st.session_state:
+        st.session_state["custom_output_fmt"] = None
+    if "output_detail_df" not in st.session_state:
+        st.session_state["output_detail_df"] = None
+    input_data_specs()
+    st.divider()
+    input_email()
 
 def email_results(docx_fname, recipient_email):
     message = Mail(
@@ -247,7 +276,14 @@ def get_user_inputs():
     column_specs = process_table()
     task_type = st.session_state["task_type"]
     output_fmt = st.session_state["output_format_options"][st.session_state["output_format"]]
-    return get_analyzer(task_type, output_fmt, pdfs, main_query, column_specs, email)
+    additional_info = None
+    if task_type=="Quote extraction" and output_fmt == "quotes_sorted_and_labelled":
+        additional_info = st.session_state["subcategories_df"]
+    elif task_type == "Custom output format":
+        additional_info = {"custom_output_fmt": st.session_state["custom_output_fmt"],
+                           "output_detail": st.session_state["output_detail_df"]
+        }
+    return get_analyzer(task_type, output_fmt, pdfs, main_query, column_specs, email, additional_info)
 
 def display_output(docx_fname):
     with open(docx_fname, 'rb') as f:

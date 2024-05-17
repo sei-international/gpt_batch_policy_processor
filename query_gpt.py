@@ -1,5 +1,4 @@
 from openai import OpenAI
-import json
 import os
 
 def new_openai_session(openai_apikey):
@@ -15,19 +14,21 @@ def create_gpt_messages(query):
         {"role": "user", "content": query}
     ]
 
-def fetch_column_info(gpt_client, gpt_model, query):
+def fetch_column_info(gpt_client, gpt_model, query, resp_fmt):
     response = gpt_client.chat.completions.create(
         model=gpt_model,
         messages=create_gpt_messages(query),
         temperature=0,
-        response_format={ "type": "json_object" }
+        response_format={ "type": resp_fmt}
     )
-    return json.loads(response.choices[0].message.content)
+    return response.choices[0].message.content
 
 def query_gpt_for_column(gpt_analyzer, variable_name, col_spec, context, relevant_texts, gpt_client, gpt_model):
     query_template = gpt_analyzer.main_query
     excerpts = '\n'.join(relevant_texts)
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=col_spec, context=context)} \n\n"
-    output_fmt_prompt = f"Return your response in the following json format: \n{gpt_analyzer.gpt_output_fmt()}"
-    prompt = f"From the following text excerpts, {main_query[0].lower()}{main_query[1:]}. \n\n {output_fmt_prompt} \n\n Text excerpts: {excerpts}"
-    return fetch_column_info(gpt_client, gpt_model, prompt)
+    main_query = gpt_analyzer.optional_add_categorization(variable_name, main_query)
+    output_prompt = gpt_analyzer.output_fmt_prompt(variable_name)
+    prompt = f'From the following text excerpts, {main_query[0].lower()}{main_query[1:]}. {output_prompt} \n\n Text excerpts: """{excerpts}"""'
+    resp_fmt = gpt_analyzer.resp_format_type()
+    return fetch_column_info(gpt_client, gpt_model, prompt, resp_fmt)

@@ -58,13 +58,18 @@ def embed_schema(openai_client, schema):
 def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-def find_top_relevant_texts(text_embeddings, pdf_text_chunks, col_embedding, num_excerpts):
+def find_top_relevant_texts(text_embeddings, pdf_text_chunks, col_embedding, num_excerpts, var_name):
+    relevant_texts = []
+    indeces = set()
     similarity_scores = []
     for i in range(len(text_embeddings)):
+        if var_name in pdf_text_chunks[i]:
+            indeces.add(i)
+            relevant_texts.append((text_embeddings[i], pdf_text_chunks[i]))
         text_embedding = text_embeddings[i]
         similarity = cosine_similarity(col_embedding, text_embedding)
         similarity_scores.append((i, similarity))
     # Sort by similarity score in descending order and take the top_n items
     sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)[:num_excerpts]
     ## RETURNS [(textembed, text), ..., 10x] for each column
-    return [(text_embeddings[i], pdf_text_chunks[i]) for i, _ in sorted_embeddings]
+    return relevant_texts + [(text_embeddings[i], pdf_text_chunks[i]) for i, _ in sorted_embeddings if i not in indeces]

@@ -60,8 +60,6 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
                     file_path = os.path.join(subdir_path, filename)
                     pdfs.append(file_path)  
         st.session_state["pdfs"] = pdfs
-        if 'is_test_run' not in st.session_state:
-            st.session_state['is_test_run'] = True
         if 'max_files' not in st.session_state:
             st.session_state['max_files'] = 3
         if 'file_select_label' not in st.session_state:
@@ -218,6 +216,8 @@ def input_email():
 def build_interface(tmp_dir):
     if 'task_type' not in st.session_state:
         st.session_state['task_type'] = 'Quote extraction'
+    if 'is_test_run' not in st.session_state:
+        st.session_state['is_test_run'] = True
     load_text()
     upload_zip(tmp_dir)
     input_main_query()

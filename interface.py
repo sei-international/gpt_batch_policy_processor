@@ -25,7 +25,7 @@ def load_text():
     instructions = """
 ## How to use
 Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 
-- **Step 0:** IF YOU ARE A NEW USER, FIRST TEST FUNCTIONALITY ON 1-5 DOCUMENTS.
+- **Step 0:** IF YOU ARE A NEW USER, FIRST TEST FUNCTIONALITY ON 1-2 DOCUMENTS.
 - **Step 1:** Create a folder containing all the policy documents you want to analyze; then compress the folder into a zip-file. Beta version only accepts pdf documents, no subfolders allowed.
 - **Step 2:** Upload the zipfile in the box below.
 - **Step 3:** Select 1-3 PDFs to analyze at first.

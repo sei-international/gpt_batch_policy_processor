@@ -1,4 +1,4 @@
-from interface import about_tab, build_interface, display_output, email_results, get_user_inputs, load_header
+from interface import about_tab, FAQ, build_interface, display_output, email_results, get_user_inputs, load_header
 from query_gpt import new_openai_session, query_gpt_for_column
 from read_pdf import extract_text_chunks_from_pdf
 from relevant_excerpts import generate_all_embeddings, embed_schema, find_top_relevant_texts
@@ -114,7 +114,7 @@ if __name__ == "__main__":
             load_header()
             _, centered_div, _ = st.columns([1, 3, 1])
             with centered_div:
-                tab1, tab2 = st.tabs(["Tool", "About"])
+                tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
                 with tab1:
                     build_interface(temp_dir)
                     if st.button("Run"):
@@ -127,6 +127,8 @@ if __name__ == "__main__":
                         os.unlink(st.session_state["temp_zip_path"])
                 with tab2:
                     about_tab()
+                with tab3:
+                    FAQ()
     except Exception as e:
         log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {e}")
         log(traceback.format_exc())

@@ -33,7 +33,7 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 0:** IF YOU ARE A NEW USER, FIRST TEST FUNCTIONALITY ON 1-3 DOCUMENTS.
 - **Step 1:** Create a folder containing all the policy documents you want to analyze; then compress the folder into a zip-file. Beta version only accepts pdf documents, no subfolders allowed.
 - **Step 2:** Upload the zipfile in the box below.
-- **Step 3:** Select 1-3 PDFs to analyze at first.
+- **Step 3:** Select 1-4 PDFs to analyze at first.
 - **Step 4:** Specify a main query template (see specific instructions and template below).
 - **Step 5:** For multiquery search, specify query variables (see specific instructions below).
 - **Step 6:** Hit “Run”. DO NOT CLOSE SESSION until you have received or downloaded results.
@@ -311,5 +311,14 @@ Babis, William / Munoz Cabre, Miquel / Dzebo, Adis / Martelo, Camilo / Salzano, 
  The Stockholm Environment Institute (SEI) hold the copyright of the GPT-Batch Policy Processor (beta) tool. It is 
  licensed under Creative Commons and you are free to copy and redistribute material derived from the  GPT-Batch Policy 
  Processor (beta) tool by following the guideline of the Creative Commons License. [CC BY-NC-NA](https://creativecommons.org/licenses/by-nc-sa/4.0/) (Attribution, NonCommercial, ShareAlike).
+"""
+    st.markdown(text)
+
+def FAQ():
+    text = """
+# Frequently asked questions \n
+
+## Coming soon \n
+
 """
     st.markdown(text)

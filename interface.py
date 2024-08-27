@@ -9,10 +9,15 @@ import pandas as pd
 import streamlit as st
 import zipfile
 
+
 def load_header():
-    html_temp = """
+    logo_path = os.path.join(os.path.dirname(__file__), 'public', 'logo.png')
+    with open(logo_path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode()
+
+    html_temp = f"""
     <div style="background-color:#00D29A;padding:10px;border-radius:10px;margin-bottom:20px;">
-        <img src="https://tr2ail.org/img/SEI-Master-Logo-Extended-Charcoal-RGB.cd475ad5.png" alt="Logo" style="height:50px;width:auto;float:right;">
+        <img src="data:image/png;base64,{encoded_string}" alt="logo" style="height:50px;width:auto;float:right;">
         <h2 style="color:white;text-align:center;">AI Policy Reader (beta)</h2>
         <h5 style="color:white;text-align:center;">This Tool allows users to analyze policy documents in bulk using the Large Language Model ChatGPT.\n
 Users can define specific queries to extract targeted information from any collection of PDF's.</h5>

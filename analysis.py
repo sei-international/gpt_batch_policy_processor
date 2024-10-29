@@ -41,9 +41,9 @@ class GPTAnalyzer:
     
     def get_num_excerpts(self, num_pages):
         if num_pages<100:
-            return 20
+            return 30
         else:
-            return int(20 * (num_pages / (100.0)))
+            return int(30 * (num_pages / (100.0)))
     
     def optional_add_categorization(self, v_name, query):
         return query
@@ -85,7 +85,7 @@ class QuoteAnalyzer(GPTAnalyzer):
 
     def output_fmt_prompt(self, var_name):
         if self.output_fmt == "quotes_gpt_resp":
-            return ""
+            return "Provide an exhaustive list of relevant quotes."
         else:
             output_json_fmt = {'list_of_quotes': [{'quote': '...', 'page_number': '...'}]}
             if self.output_fmt == "quotes_sorted_and_labelled":

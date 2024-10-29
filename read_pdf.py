@@ -5,11 +5,13 @@ def extract_text_chunks_from_pdf(pdf_path, max_chunk_size):
     text_chunks = []
     curr_chunk = ""
     curr_page = 1
+    char_count = 0
 
     with fitz.open(pdf_path) as pdf:
         num_pages = len(pdf)
         for page_num, page in enumerate(pdf, start=1):
             page_text = page.get_text()
+            char_count += len(page_text)
             if page_text:
                 # Basic text cleaning
                 page_text = re.sub(r'\s+', ' ', page_text)  # Remove extra whitespace
@@ -19,12 +21,12 @@ def extract_text_chunks_from_pdf(pdf_path, max_chunk_size):
                     if len(curr_chunk) + len(sentence) < max_chunk_size:
                         curr_chunk += sentence + " "
                     else:
-                        text_chunks.append(f"{curr_chunk.strip()} [page {curr_page}]")
+                        text_chunks.append(f"• {curr_chunk.strip()} [page {curr_page}] /n")
                         curr_chunk = sentence + " "
                         curr_page = page_num
                 # Append the last chunk for the page if it's not empty
                 if curr_chunk.strip():
                     # This condition prevents the last chunk of the current page from being appended without the page number
-                    text_chunks.append(f"{curr_chunk.strip()} [page {page_num}]")
+                    text_chunks.append(f"• {curr_chunk.strip()} [page {page_num}] \n")
                     curr_chunk = ""  # Reset curr_chunk for the next page
-    return text_chunks, num_pages
+    return text_chunks, num_pages, char_count

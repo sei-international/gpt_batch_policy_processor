@@ -29,14 +29,15 @@ def get_schema():
             schema[key] = value 
     return schema, main_query, False
 
-def extract_policy_doc_info(gpt_analyzer, text_embeddings, text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey):
+def extract_policy_doc_info(gpt_analyzer, text_embeddings, input_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey):
     policy_doc_data = {}
+    text_chunks = input_text_chunks
     client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
     run_on_full_text = char_count < (max_num_chars - 1000)
     for var_name in var_embeddings:
         if not run_on_full_text: 
             col_embedding, col_desc, context = var_embeddings[var_name]["embedding"], var_embeddings[var_name]["column_description"], var_embeddings[var_name]["context"], 
-            top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, text_chunks, col_embedding, num_excerpts, var_name)
+            top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, input_text_chunks, col_embedding, num_excerpts, var_name)
             text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
         resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, text_chunks, run_on_full_text, client, gpt_model)
         policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
@@ -84,10 +85,10 @@ def main(gpt_analyzer, openai_apikey):
             country_start_time = time.time()
             # 1) read pdf
             text_chunk_size = gpt_analyzer.get_chunk_size()
-            text_chunks, num_pages, char_count = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)            
+            text_chunks, num_pages, char_count = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
             total_num_pages += num_pages
             openai_client, _, _ = new_openai_session(openai_apikey)
-            pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path)
+            pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path) 
 
             # 2) Prepare embeddings to grab most relevant text excerpts for each column
             #schema, main_query, compare_output_bool = get_schema()
@@ -101,8 +102,8 @@ def main(gpt_analyzer, openai_apikey):
 
             print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages})
         except Exception as e:
-            print(f"Error for {pdf}: {e}")
-            print(traceback.format_exc())
+            log(f"Error for {pdf}: {e}")
+            log(traceback.format_exc())
     output_metrics(output_doc, len(gpt_analyzer.pdfs), time.time() - total_start_time, total_num_pages)
     output_fname = get_output_fname(get_resource_path)
     output_doc.save(output_fname)

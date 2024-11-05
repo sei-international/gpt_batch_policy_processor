@@ -110,6 +110,7 @@ class QuoteAnalyzer(GPTAnalyzer):
     ## Returns either an unstructured string or a json object list
     def format_gpt_response(self, resp):
         if self.output_fmt == "quotes_gpt_resp":
+            print("RESP", resp)
             return resp
         else:  
             return json.loads(resp)["list_of_quotes"]
@@ -121,6 +122,8 @@ class QuoteAnalyzer(GPTAnalyzer):
             quotes = {}
             for var_name, relevant_quotes_gpt_resp in policy_info.items():
                 quotes[var_name] = {self.get_output_headers()[1]: relevant_quotes_gpt_resp}
+            print("POLICY INFO", policy_info)
+            print("RESP", quotes)
             return quotes
         elif self.output_fmt == "quotes_structured":
             all_quotes = {}
@@ -172,7 +175,7 @@ class QuoteAnalyzer(GPTAnalyzer):
         
     def get_output_headers(self):
         if self.output_fmt == "quotes_gpt_resp":
-            return ["Quote", "Relevant Quotes"]
+            return ["Variable", "Relevant Quotes"]
         else:
             headers = ["Quote", "Relevant Variables"]
             if self.output_fmt == "quotes_sorted_and_labelled":
@@ -189,11 +192,42 @@ class QuoteAnalyzer(GPTAnalyzer):
     def resp_format_type(self):
         return "text" if self.output_fmt == "quotes_gpt_resp" else "json_object"
 
+class SummaryAnalyzer(GPTAnalyzer):
+    def __init__(self, pdfs, main_query, variable_specs, email, output_fmt, additional_info):
+        super().__init__(pdfs, main_query, variable_specs, email, output_fmt, additional_info) 
+    
+    def output_fmt_prompt(self, var_name):
+        return "Summarize the text as described."
+    
+    def format_gpt_response(self, resp):
+        print("FMT", resp)
+        return resp
+    
+    def get_results(self, policy_info):
+        resp = {}
+        for var_name, r in policy_info.items():
+            resp[var_name] = {self.get_output_headers()[1]: r}
+        print("POLICY INFO", policy_info)
+        print("RESP", resp)            
+        return resp
+    
+    def get_output_headers(self):
+        return ["Variable", "Summary"]
+    
+    def get_chunk_size(self):
+        return 500
+        
+    def get_num_excerpts(self, num_pages):
+        return 20 + int(100 * (float(num_pages) / (100.0)))
+    
+    def resp_format_type(self):
+        return "text"
 
 def get_task_types():
     return {
         "Quote extraction": QuoteAnalyzer,
         "Custom output format": CustomOutputAnalyzer,
+        "Targeted summaries": SummaryAnalyzer,
         "Targeted inquiries": DefaultAnalyzer
     }
 

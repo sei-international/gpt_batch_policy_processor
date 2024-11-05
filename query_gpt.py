@@ -12,7 +12,7 @@ def create_gpt_messages(query, run_on_full_text):
     text_label = "collection of text excerpts"
     if run_on_full_text:
         text_label = "document"
-    system_command = "Use the provided "+text_label+" delimited by triple quotes to respond to instructions delimited with XML tags. Be precise. Be accurate. Be exhaustive: you may return up to 200 quotes. Proceed progressively through all text provided. Do not stop processing until all text has been read. Be consistent with your responses to the same query."
+    system_command = "Use the provided "+text_label+" delimited by triple quotes to respond to instructions delimited with XML tags. Be precise. Be accurate. Be exhaustive: do not truncate your response if response is incomplete. Proceed progressively through all text provided. Do not stop processing until all text has been read. Be consistent with your responses to the same query."
     return [
         {"role": "system", "content": system_command},
         {"role": "user", "content": query}

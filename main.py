@@ -35,8 +35,8 @@ def extract_policy_doc_info(gpt_analyzer, text_embeddings, input_text_chunks, ch
     client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
     run_on_full_text = char_count < (max_num_chars - 1000)
     for var_name in var_embeddings:
+        col_embedding, col_desc, context = var_embeddings[var_name]["embedding"], var_embeddings[var_name]["column_description"], var_embeddings[var_name]["context"], 
         if not run_on_full_text: 
-            col_embedding, col_desc, context = var_embeddings[var_name]["embedding"], var_embeddings[var_name]["column_description"], var_embeddings[var_name]["context"], 
             top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, input_text_chunks, col_embedding, num_excerpts, var_name)
             text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
         resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, text_chunks, run_on_full_text, client, gpt_model)

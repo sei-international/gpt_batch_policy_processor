@@ -1,3 +1,4 @@
 .streamlit/secrets.toml
 results.docx
 *.pyc
+.devcontainer/devcontainer.json

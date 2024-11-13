@@ -27,6 +27,7 @@ Users can define specific queries to extract targeted information from any colle
     st.markdown(html_temp, unsafe_allow_html=True)
 
 def load_text():
+    st.warning('OPENAI CREDITS EMPTY. APPLICATION TEMPORARILY SUSPENDED. EMAIL william.babis@sei.org FOR UPDATES. IT WILL BE BACK UP NEXT WEEK.', icon="⚠️")
     instructions = """
 ## How to use
 Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 

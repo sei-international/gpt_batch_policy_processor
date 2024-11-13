@@ -20,7 +20,7 @@ class GPTAnalyzer:
         pass
     
     def get_chunk_size(self):
-        return 500
+        return 200
 
     ## policy_info: {var_name: gpt response from above function}
     ## returns: {row_id: {"col_name": val, ...}}
@@ -41,9 +41,9 @@ class GPTAnalyzer:
     
     def get_num_excerpts(self, num_pages):
         if num_pages<100:
-            return 60
+            return 40
         else:
-            return int(60 * (num_pages / (100.0)))
+            return 40 + int(num_pages / 5.0)
     
     def optional_add_categorization(self, v_name, query):
         return query
@@ -122,8 +122,6 @@ class QuoteAnalyzer(GPTAnalyzer):
             quotes = {}
             for var_name, relevant_quotes_gpt_resp in policy_info.items():
                 quotes[var_name] = {self.get_output_headers()[1]: relevant_quotes_gpt_resp}
-            print("POLICY INFO", policy_info)
-            print("RESP", quotes)
             return quotes
         elif self.output_fmt == "quotes_structured":
             all_quotes = {}
@@ -187,7 +185,7 @@ class QuoteAnalyzer(GPTAnalyzer):
         return 200
         
     def get_num_excerpts(self, num_pages):
-        return 20 + int(100 * (float(num_pages) / (100.0)))
+        return 40 + int(float(num_pages) / (5.0))
     
     def resp_format_type(self):
         return "text" if self.output_fmt == "quotes_gpt_resp" else "json_object"
@@ -197,7 +195,7 @@ class SummaryAnalyzer(GPTAnalyzer):
         super().__init__(pdfs, main_query, variable_specs, email, output_fmt, additional_info) 
     
     def output_fmt_prompt(self, var_name):
-        return "Summarize the text as described."
+        return ""
     
     def format_gpt_response(self, resp):
         print("FMT", resp)
@@ -218,7 +216,7 @@ class SummaryAnalyzer(GPTAnalyzer):
         return 500
         
     def get_num_excerpts(self, num_pages):
-        return 20 + int(100 * (float(num_pages) / (100.0)))
+        return 40 + int(float(num_pages) / (5.0))
     
     def resp_format_type(self):
         return "text"

@@ -120,14 +120,15 @@ if __name__ == "__main__":
                 tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
                 with tab1:
                     build_interface(temp_dir)
-                    if st.button("Run"):
+                    """if st.button("Run"):
                         gpt_analyzer = get_user_inputs()
                         with st.spinner('Generating output document...'):
                             openai_apikey = st.secrets["openai_apikey"]
                             log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {gpt_analyzer}")
                             main(gpt_analyzer, openai_apikey)
                         st.success('Document generated!')
-                        os.unlink(st.session_state["temp_zip_path"])
+                        os.unlink(st.session_state["temp_zip_path"])"""
+                    st.warning('OPENAI CREDITS EMPTY. APPLICATION TEMPORARILY SUSPENDED. EMAIL william.babis@sei.org FOR UPDATES. IT WILL BE BACK UP NEXT WEEK.', icon="⚠️")
                 with tab2:
                     about_tab()
                 with tab3:

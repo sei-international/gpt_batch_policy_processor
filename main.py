@@ -39,6 +39,7 @@ def extract_policy_doc_info(gpt_analyzer, text_embeddings, input_text_chunks, ch
         if not run_on_full_text: 
             top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, input_text_chunks, col_embedding, num_excerpts, var_name)
             text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
+            print("HERE")
         resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, text_chunks, run_on_full_text, client, gpt_model)
         policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
     return policy_doc_data
@@ -109,6 +110,7 @@ def main(gpt_analyzer, openai_apikey):
     output_doc.save(output_fname)
     email_results(output_fname, gpt_analyzer.email)
     display_output(output_fname)
+    return total_num_pages
 
 if __name__ == "__main__":
     try: 
@@ -120,20 +122,22 @@ if __name__ == "__main__":
                 tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
                 with tab1:
                     build_interface(temp_dir)
-                    """if st.button("Run"):
+                    if st.button("Run"):
                         gpt_analyzer = get_user_inputs()
                         with st.spinner('Generating output document...'):
-                            openai_apikey = st.secrets["openai_apikey"]
-                            log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {gpt_analyzer}")
-                            main(gpt_analyzer, openai_apikey)
+                            apikey_id = "openai_apikey"
+                            if "apikey_id" in st.session_state:
+                                apikey_id = st.session_state["apikey_id"]
+                            openai_apikey = st.secrets[apikey_id]
+                            num_pages = main(gpt_analyzer, openai_apikey)
+                            log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id; {num_pages} pages; {gpt_analyzer}")
                         st.success('Document generated!')
-                        os.unlink(st.session_state["temp_zip_path"])"""
-                    st.warning('OPENAI CREDITS EMPTY. APPLICATION TEMPORARILY SUSPENDED. EMAIL william.babis@sei.org FOR UPDATES. IT WILL BE BACK UP NEXT WEEK.', icon="⚠️")
+                        os.unlink(st.session_state["temp_zip_path"])
                 with tab2:
                     about_tab()
                 with tab3:
                     FAQ()
     except Exception as e:
-        log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> {e}")
+        log(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id:{e}")
         log(traceback.format_exc())
         

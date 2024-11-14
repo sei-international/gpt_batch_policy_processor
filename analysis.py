@@ -110,7 +110,6 @@ class QuoteAnalyzer(GPTAnalyzer):
     ## Returns either an unstructured string or a json object list
     def format_gpt_response(self, resp):
         if self.output_fmt == "quotes_gpt_resp":
-            print("RESP", resp)
             return resp
         else:  
             return json.loads(resp)["list_of_quotes"]
@@ -185,7 +184,7 @@ class QuoteAnalyzer(GPTAnalyzer):
         return 200
         
     def get_num_excerpts(self, num_pages):
-        return 40 + int(float(num_pages) / (5.0))
+        return 20 + num_pages
     
     def resp_format_type(self):
         return "text" if self.output_fmt == "quotes_gpt_resp" else "json_object"
@@ -198,15 +197,12 @@ class SummaryAnalyzer(GPTAnalyzer):
         return ""
     
     def format_gpt_response(self, resp):
-        print("FMT", resp)
         return resp
     
     def get_results(self, policy_info):
         resp = {}
         for var_name, r in policy_info.items():
-            resp[var_name] = {self.get_output_headers()[1]: r}
-        print("POLICY INFO", policy_info)
-        print("RESP", resp)            
+            resp[var_name] = {self.get_output_headers()[1]: r}      
         return resp
     
     def get_output_headers(self):
@@ -216,7 +212,7 @@ class SummaryAnalyzer(GPTAnalyzer):
         return 500
         
     def get_num_excerpts(self, num_pages):
-        return 40 + int(float(num_pages) / (5.0))
+        return 5 + num_pages
     
     def resp_format_type(self):
         return "text"

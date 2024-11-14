@@ -27,7 +27,6 @@ Users can define specific queries to extract targeted information from any colle
     st.markdown(html_temp, unsafe_allow_html=True)
 
 def load_text():
-    st.warning('OPENAI CREDITS EMPTY. APPLICATION TEMPORARILY SUSPENDED. EMAIL william.babis@sei.org FOR UPDATES. IT WILL BE BACK UP NEXT WEEK.', icon="⚠️")
     instructions = """
 ## How to use
 Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 
@@ -81,7 +80,13 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
                         "Tool for all policy documents of interest. Please contact william.babis@sei.org for access.")
             passcode = st.text_input("Enter passcode")
             if passcode:
-                if passcode == st.secrets["access_password"]:
+                apikey_ids = {
+                    st.secrets["access_password"]: "openai_apikey",
+                    st.secrets["access_password_adis"]: "openai_apikey_adis",
+                    st.secrets["access_password_stefan_mia"]: "openai_apikey_stefan_mia"
+                }
+                if passcode in apikey_ids:
+                    st.session_state['apikey_id'] = apikey_ids[passcode]
                     st.session_state['is_test_run'] = False
                     st.session_state['max_files'] = None
                     st.session_state['file_select_label'] = "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"

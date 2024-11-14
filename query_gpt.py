@@ -5,7 +5,7 @@ def new_openai_session(openai_apikey):
     os.environ["OPENAI_API_KEY"] = openai_apikey
     client = OpenAI()
     gpt_model = "gpt-4o" #"o1-preview"
-    max_num_chars = 100000
+    max_num_chars = 25000
     return client, gpt_model, max_num_chars
 
 def create_gpt_messages(query, run_on_full_text):
@@ -37,6 +37,7 @@ def fetch_column_info(gpt_client, gpt_model, query, resp_fmt, run_on_full_text):
     return follow_up_response"""
 
 def query_gpt_for_column(gpt_analyzer, variable_name, col_spec, context, relevant_texts, run_on_full_text, gpt_client, gpt_model):
+    print(relevant_texts)
     query_template = gpt_analyzer.main_query
     excerpts = '\n'.join(relevant_texts)
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=col_spec, context=context)} \n\n"

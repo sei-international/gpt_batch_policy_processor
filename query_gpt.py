@@ -37,7 +37,6 @@ def fetch_column_info(gpt_client, gpt_model, query, resp_fmt, run_on_full_text):
     return follow_up_response"""
 
 def query_gpt_for_column(gpt_analyzer, variable_name, col_spec, context, relevant_texts, run_on_full_text, gpt_client, gpt_model):
-    print(relevant_texts)
     query_template = gpt_analyzer.main_query
     excerpts = '\n'.join(relevant_texts)
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=col_spec, context=context)} \n\n"

@@ -30,7 +30,7 @@ def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
             return cached_embeddings["embeddings"], cached_embeddings["text_chunks"]
     else:
         embeddings = [generate_embedding(openai_client, t) for t in text_chunks]
-        cache_embeddings(embeddings, text_chunks, pdf_path, path_fxn)
+        #cache_embeddings(embeddings, text_chunks, pdf_path, path_fxn)
         return embeddings, text_chunks
 
 def embed_schema_col(openai_client, prompt):

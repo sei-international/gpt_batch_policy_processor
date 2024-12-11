@@ -108,8 +108,8 @@ def main(gpt_analyzer, openai_apikey):
                 policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey)
                 # 4) Output Results
                 if section != None:
-                    pdf_path += f" ({section} of {len(text_sections)})"
-                output_results(gpt_analyzer, output_doc, pdf_path, policy_info)
+                    output_pdf_path = f"{pdf_path} ({section} of {len(text_sections)})"
+                output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
 
             print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf})
         except Exception as e:

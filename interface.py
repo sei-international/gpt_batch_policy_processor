@@ -38,7 +38,7 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 5:** For multiquery search, specify query variables (see specific instructions below).
 - **Step 6:** Hit “Run”. DO NOT CLOSE SESSION until you have received or downloaded results.
 - **Step 7:** Assess results, change parameters as needed, and repeat steps 1-6.
-- **Step 8:** Once results are satisfactory, contact william.babis@sei.org for access to full batch-processing functionality.
+- **Step 8:** Once results are satisfactory, contact aipolicyreader@sei.org for access to full batch-processing functionality.
 - **Step 9:** Re-run once more on all policy documents."""
 
     st.markdown(instructions)
@@ -84,7 +84,9 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
                     st.secrets["access_password"]: "openai_apikey",
                     st.secrets["access_password_adis"]: "openai_apikey_adis",
                     st.secrets["access_password_stefan_mia"]: "openai_apikey_stefan_mia",
-                    st.secrets["access_password_guillaume"]: "openai_apikey_guillaume"
+                    st.secrets["access_password_guillaume"]: "openai_apikey_guillaume",
+                    st.secrets["access_password_sharone"]: "openai_apikey_sharone"
+
                 }
                 if passcode in apikey_ids:
                     st.session_state['apikey_id'] = apikey_ids[passcode]

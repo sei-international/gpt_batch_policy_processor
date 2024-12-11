@@ -68,5 +68,7 @@ def output_results(gpt_analyzer, output_doc, pdf_path, policy_info):
     output_headers = gpt_analyzer.get_output_headers()
     create_word_table(output_doc, pdf_path, rows_dict, output_headers)
 
-def output_metrics(doc, num_docs, t, num_pages):
+def output_metrics(doc, num_docs, t, num_pages, failed_pdfs):
     doc.add_heading(f"{num_docs} documents ({num_pages} total pages) processed in {t:.2f} seconds", 4)
+    if len(failed_pdfs) > 0:
+        doc.add_heading(f"Unable to process the following PDFs: {failed_pdfs}", 4)

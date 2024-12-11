@@ -39,7 +39,6 @@ def extract_policy_doc_info(gpt_analyzer, text_embeddings, input_text_chunks, ch
         if not run_on_full_text: 
             top_text_chunks_w_emb = find_top_relevant_texts(text_embeddings, input_text_chunks, col_embedding, num_excerpts, var_name)
             text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
-            print("HERE")
         resp = query_gpt_for_column(gpt_analyzer, var_name, col_desc, context, text_chunks, run_on_full_text, client, gpt_model)
         policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
     return policy_doc_data
@@ -80,32 +79,43 @@ def main(gpt_analyzer, openai_apikey):
     format_output_doc(output_doc, gpt_analyzer)
     total_num_pages = 0
     total_start_time = time.time()
+    failed_pdfs = []
     for pdf in gpt_analyzer.pdfs:
         pdf_path = get_resource_path(f"{pdf.replace('.pdf','')}.pdf")
         try:
             country_start_time = time.time()
             # 1) read pdf
             text_chunk_size = gpt_analyzer.get_chunk_size()
-            text_chunks, num_pages, char_count = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
-            total_num_pages += num_pages
-            openai_client, _, _ = new_openai_session(openai_apikey)
-            pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path) 
+            text_sections = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
+            if text_sections[0][0] == None:
+                exception = text_sections[0][1]
+                failed_pdfs.append(pdf)
+                continue
+            num_pages_in_pdf = 0
+            for text_section in text_sections:
+                text_chunks, num_pages, char_count, section = text_section
+                num_pages_in_pdf += num_pages
+                total_num_pages += num_pages
+                openai_client, _, _ = new_openai_session(openai_apikey)
+                pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path) 
 
-            # 2) Prepare embeddings to grab most relevant text excerpts for each column
-            #schema, main_query, compare_output_bool = get_schema()
-            openai_client, _, _ = new_openai_session(openai_apikey)
-            var_embeddings = embed_schema(openai_client, gpt_analyzer.variable_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
-            # 3) Iterate through each column to grab relevant texts and query
-            num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
-            policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey)
-            # 4) Output Results
-            output_results(gpt_analyzer, output_doc, pdf_path, policy_info)
+                # 2) Prepare embeddings to grab most relevant text excerpts for each column
+                #schema, main_query, compare_output_bool = get_schema()
+                openai_client, _, _ = new_openai_session(openai_apikey)
+                var_embeddings = embed_schema(openai_client, gpt_analyzer.variable_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
+                # 3) Iterate through each column to grab relevant texts and query
+                num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
+                policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey)
+                # 4) Output Results
+                if section != None:
+                    pdf_path += f" ({section} of {len(text_sections)})"
+                output_results(gpt_analyzer, output_doc, pdf_path, policy_info)
 
-            print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages})
+            print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf})
         except Exception as e:
             log(f"Error for {pdf}: {e}")
             log(traceback.format_exc())
-    output_metrics(output_doc, len(gpt_analyzer.pdfs), time.time() - total_start_time, total_num_pages)
+    output_metrics(output_doc, len(gpt_analyzer.pdfs), time.time() - total_start_time, total_num_pages, failed_pdfs)
     output_fname = get_output_fname(get_resource_path)
     output_doc.save(output_fname)
     email_results(output_fname, gpt_analyzer.email)
@@ -115,7 +125,12 @@ def main(gpt_analyzer, openai_apikey):
 if __name__ == "__main__":
     try: 
         with TemporaryDirectory() as temp_dir:
-            st.set_page_config(layout="wide")
+            logo_path = os.path.join(os.path.dirname(__file__), 'public', 'logo2.jpg')
+            st.set_page_config(
+                layout="wide",
+                page_title="AI Policy Reader",
+                page_icon=logo_path
+            )
             load_header()
             _, centered_div, _ = st.columns([1, 3, 1])
             with centered_div:

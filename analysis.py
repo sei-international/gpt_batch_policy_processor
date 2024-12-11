@@ -184,7 +184,10 @@ class QuoteAnalyzer(GPTAnalyzer):
         return 200
         
     def get_num_excerpts(self, num_pages):
-        return 20 + num_pages
+        if num_pages < 200:
+            return 20 + num_pages
+        else:
+            return 220
     
     def resp_format_type(self):
         return "text" if self.output_fmt == "quotes_gpt_resp" else "json_object"

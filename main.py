@@ -98,19 +98,19 @@ def main(gpt_analyzer, openai_apikey):
                 total_num_pages += num_pages
                 openai_client, _, _ = new_openai_session(openai_apikey)
                 pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path) 
-
                 # 2) Prepare embeddings to grab most relevant text excerpts for each column
                 #schema, main_query, compare_output_bool = get_schema()
                 openai_client, _, _ = new_openai_session(openai_apikey)
                 var_embeddings = embed_schema(openai_client, gpt_analyzer.variable_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
+
                 # 3) Iterate through each column to grab relevant texts and query
                 num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
                 policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey)
                 # 4) Output Results
+                output_pdf_path = pdf_path
                 if section != None:
                     output_pdf_path = f"{pdf_path} ({section} of {len(text_sections)})"
                 output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
-
             print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf})
         except Exception as e:
             log(f"Error for {pdf}: {e}")

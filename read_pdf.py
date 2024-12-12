@@ -29,7 +29,6 @@ def extract_text_chunks_from_pdf(pdf_path, max_chunk_size):
                         # This condition prevents the last chunk of the current page from being appended without the page number
                         text_chunks.append(f"• {curr_chunk.strip()} [page {page_num}] \n")
                         curr_chunk = ""  # Reset curr_chunk for the next page
-        print(900)
         if num_pages > 250:
             num_iters = num_pages // 250 + 1
             text_sections = []

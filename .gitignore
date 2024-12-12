@@ -1,4 +1,6 @@
 .streamlit/secrets.toml
-results.docx
+*.docx
+*.doc
 *.pyc
+embeddings_cache/*.json
 .devcontainer/devcontainer.json

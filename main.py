@@ -61,9 +61,6 @@ def log(new_content):
         data = {'files': {log_fname: {'content': updated_content}}}
         requests.patch(gist_url, headers=headers, data=json.dumps(data))
 
-def timeout(s, f):
-    raise TimeoutError("took too long")
-
 def main(gpt_analyzer, openai_apikey):
     compare_output_bool = False
     output_doc = Document()

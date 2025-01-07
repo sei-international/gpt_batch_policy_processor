@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import os
+import tiktoken
 
 def get_cache_fname(pdf_path, path_fxn):
     pdf_fname = os.path.basename(pdf_path)
@@ -15,21 +16,46 @@ def cache_embeddings(embeddings, text_chunks, pdf_file_path, path_fxn):
     with open(json_file_path, "w", encoding="utf-8") as f:
         json.dump(output_dict, f)
 
-def generate_embedding(openai_client, text):
+def generate_embeddings(openai_client, text, model="text-embedding-3-small"):
     response = openai_client.embeddings.create(
-        model="text-embedding-3-small",
+        model=model,
         input=text
     )
-    return response.data[0].embedding
+    return response
+
+def generate_embedding(openai_client, text):
+    r = generate_embeddings(openai_client, text)
+    return r.data[0].embedding
 
 def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
+    embeddings_model, token_limit = "text-embedding-3-small", 8000
     cache_fname = get_cache_fname(pdf_path, path_fxn)
     if os.path.exists(cache_fname):
         with open(cache_fname, "r", encoding="utf-8") as f:
             cached_embeddings = json.load(f)
             return cached_embeddings["embeddings"], cached_embeddings["text_chunks"]
     else:
-        embeddings = [generate_embedding(openai_client, t) for t in text_chunks]
+        batches = []
+        current_batch = []
+        current_tokens = 0
+        enc = tiktoken.encoding_for_model(embeddings_model)
+        for text in text_chunks:
+            tokens = len(enc.encode(text))
+            if current_tokens + tokens > token_limit:
+                batches.append(current_batch)
+                current_batch = [text]
+                current_tokens = tokens
+            else:
+                current_batch.append(text)
+                current_tokens += tokens
+        if len(current_batch) > 0:
+            batches.append(current_batch)
+            
+        embeddings = []
+        for batch in batches:
+            response = generate_embeddings(openai_client, batch, embeddings_model)
+            embeddings.extend([r.embedding for r in response.data])
+            
         cache_embeddings(embeddings, text_chunks, pdf_path, path_fxn)
         return embeddings, text_chunks
 

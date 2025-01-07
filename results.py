@@ -7,8 +7,8 @@ def get_output_fname(path_fxn, filetype="docx"):
     return path_fxn(f"results.{filetype}")
 
 # rows_dict: {row_id: {"col_name": val, ...}}
-def create_word_table(doc, pdf_path, rows_dict, output_headers):
-    fname = os.path.basename(pdf_path)
+def create_word_table(doc, output_pdf_path, rows_dict, output_headers):
+    fname = os.path.basename(output_pdf_path)
     doc.add_heading(f"{fname}", 2)
     num_rows = len(rows_dict.keys())
     table = doc.add_table(rows=num_rows+2, cols=len(output_headers))
@@ -63,10 +63,10 @@ def format_output_doc(output_doc, gpt_analyzer):
     except Exception as e:
         print(f"Error (format_output_doc()): {e}")
 
-def output_results(gpt_analyzer, output_doc, pdf_path, policy_info):
+def output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info):
     rows_dict = gpt_analyzer.get_results(policy_info)
     output_headers = gpt_analyzer.get_output_headers()
-    create_word_table(output_doc, pdf_path, rows_dict, output_headers)
+    create_word_table(output_doc, output_pdf_path, rows_dict, output_headers)
 
 def output_metrics(doc, num_docs, t, num_pages, failed_pdfs):
     doc.add_heading(f"{num_docs} documents ({num_pages} total pages) processed in {t:.2f} seconds", 4)

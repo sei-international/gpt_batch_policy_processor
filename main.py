@@ -17,18 +17,6 @@ import traceback
 def get_resource_path(relative_path):
     return relative_path
 
-def get_schema():
-    filepath = get_resource_path("instructions.docx")
-    doc = Document(filepath)
-    schema = {}
-    if doc.tables:
-        main_query = doc.tables[0].cell(0,0).text 
-        for info_spec in  doc.tables[1].rows:
-            key = info_spec.cells[0].text
-            value = info_spec.cells[1].text
-            schema[key] = value 
-    return schema, main_query, False
-
 def extract_policy_doc_info(gpt_analyzer, text_embeddings, input_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey):
     policy_doc_data = {}
     text_chunks = input_text_chunks
@@ -73,6 +61,9 @@ def log(new_content):
         data = {'files': {log_fname: {'content': updated_content}}}
         requests.patch(gist_url, headers=headers, data=json.dumps(data))
 
+def timeout(s, f):
+    raise TimeoutError("took too long")
+
 def main(gpt_analyzer, openai_apikey):
     compare_output_bool = False
     output_doc = Document()
@@ -90,16 +81,21 @@ def main(gpt_analyzer, openai_apikey):
             if text_sections[0][0] == None:
                 exception = text_sections[0][1]
                 failed_pdfs.append(pdf)
+                print(f"Failed: {pdf} with {e}")
                 continue
             num_pages_in_pdf = 0
-            for text_section in text_sections:
+            num_sections = len(text_sections)
+            for text_section in text_sections: 
                 text_chunks, num_pages, char_count, section = text_section
+                if num_sections > 0:
+                    output_pdf_path = f"{pdf_path} ({section} of {len(text_sections)})"
+                else:
+                    output_pdf_path = f"{pdf_path}"
                 num_pages_in_pdf += num_pages
                 total_num_pages += num_pages
                 openai_client, _, _ = new_openai_session(openai_apikey)
-                pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, pdf_path, text_chunks, get_resource_path) 
+                pdf_embeddings, pdf_text_chunks = generate_all_embeddings(openai_client, output_pdf_path, text_chunks, get_resource_path) 
                 # 2) Prepare embeddings to grab most relevant text excerpts for each column
-                #schema, main_query, compare_output_bool = get_schema()
                 openai_client, _, _ = new_openai_session(openai_apikey)
                 var_embeddings = embed_schema(openai_client, gpt_analyzer.variable_specs) # i.e. {"col_name": {"embedding": <...>", "column_description": <...>, "context": <...>},  ...}
 
@@ -107,14 +103,13 @@ def main(gpt_analyzer, openai_apikey):
                 num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
                 policy_info = extract_policy_doc_info(gpt_analyzer, pdf_embeddings, pdf_text_chunks, char_count, var_embeddings, num_excerpts, openai_apikey)
                 # 4) Output Results
-                output_pdf_path = pdf_path
-                if section != None:
-                    output_pdf_path = f"{pdf_path} ({section} of {len(text_sections)})"
                 output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
             print_milestone("Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf})
         except Exception as e:
+            print(e)
             log(f"Error for {pdf}: {e}")
             log(traceback.format_exc())
+            
     output_metrics(output_doc, len(gpt_analyzer.pdfs), time.time() - total_start_time, total_num_pages, failed_pdfs)
     output_fname = get_output_fname(get_resource_path)
     output_doc.save(output_fname)

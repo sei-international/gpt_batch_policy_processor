@@ -83,10 +83,10 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
                 apikey_ids = {
                     st.secrets["access_password"]: "openai_apikey",
                     st.secrets["access_password_adis"]: "openai_apikey_adis",
-                    #st.secrets["access_password_stefan_mia"]: "openai_apikey_stefan_mia",
-                    #st.secrets["access_password_guillaume"]: "openai_apikey_guillaume",
                     st.secrets["access_password_sharone"]: "openai_apikey_sharone",
                     st.secrets["access_password_bb"]: "openai_apikey_bb"
+                    #st.secrets["access_password_stefan_mia"]: "openai_apikey_stefan_mia",
+                    #st.secrets["access_password_guillaume"]: "openai_apikey_guillaume",
                 }
                 if passcode in apikey_ids:
                     st.session_state['apikey_id'] = apikey_ids[passcode]

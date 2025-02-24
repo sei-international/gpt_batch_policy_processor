@@ -36,14 +36,18 @@ def fetch_column_info(gpt_client, gpt_model, query, resp_fmt, run_on_full_text):
     follow_up_response = chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs)
     return follow_up_response"""
 
+import re
 def query_gpt_for_column(gpt_analyzer, variable_name, col_spec, context, relevant_texts, run_on_full_text, gpt_client, gpt_model):
     query_template = gpt_analyzer.main_query
     excerpts = '\n'.join(relevant_texts)
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=col_spec, context=context)} \n\n"
     main_query = gpt_analyzer.optional_add_categorization(variable_name, main_query)
     output_prompt = gpt_analyzer.output_fmt_prompt(variable_name)
-    if len(output_prompt) > 1:
+    if len(output_prompt) > 1:  
         output_prompt = " " + output_prompt
-    prompt = f'<instructions>{main_query}.{output_prompt}</instructions> \n\n """{excerpts}"""'
+    p = f'<instructions>{main_query}</instructions>'.replace(" ?", "?")
+    p = re.sub(r'\s+', ' ', p).strip()
+    prompt = f'{p} \n\n """{excerpts}"""'
+    #prompt = f'<instructions>{main_query}.{output_prompt}</instructions> \n\n """{excerpts}"""'
     resp_fmt = gpt_analyzer.resp_format_type()
     return fetch_column_info(gpt_client, gpt_model, prompt, resp_fmt, run_on_full_text)

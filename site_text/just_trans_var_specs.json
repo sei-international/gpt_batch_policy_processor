@@ -1,0 +1,24 @@
+[
+    {"variable_name": "gender", "variable_description": "", "context": ""},
+    {"variable_name": "jobs", "variable_description": "", "context": ""},
+    {
+        "variable_name": "local communities and co-benefits",
+        "variable_description": "",
+        "context": ""
+    },
+    {
+        "variable_name": "indigenous peoples",
+        "variable_description": "",
+        "context": ""
+    },
+    {
+        "variable_name": "prior informed consent",
+        "variable_description": "",
+        "context": ""
+    },
+    {
+        "variable_name": "human rights",
+        "variable_description": "",
+        "context": ""
+    }
+]

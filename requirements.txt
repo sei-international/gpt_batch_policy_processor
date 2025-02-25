@@ -1,8 +1,10 @@
+black
 numpy
 openai
 pdfplumber
 pymupdf
 python-docx
+ruff
 sendgrid
 streamlit
 tiktoken

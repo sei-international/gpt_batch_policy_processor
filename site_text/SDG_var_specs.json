@@ -1,0 +1,87 @@
+[
+    {
+        "variable_name": "SDG 1",
+        "variable_description": "End poverty in all its forms everywhere",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 2",
+        "variable_description": "End hunger, achieve food security and improved nutrition and promote sustainable agriculture",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 3",
+        "variable_description": "Ensure healthy lives and promote well-being for all at all ages",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 4",
+        "variable_description": "Ensure inclusive and equitable quality education and promote lifelong learning opportunities for all",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 5",
+        "variable_description": "Achieve gender equality and empower all women and girls",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 6",
+        "variable_description": "Ensure availability and sustainable management of water and sanitation for all",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 7",
+        "variable_description": "Ensure access to affordable, reliable, sustainable and modern energy for all",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 8",
+        "variable_description": "Promote sustained, inclusive and sustainable economic growth, full and productive employment and decent work for all",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 9",
+        "variable_description": "Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 10",
+        "variable_description": "Reduce inequality within and among countries",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 11",
+        "variable_description": "Make cities and human settlements inclusive, safe, resilient and sustainable",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 12",
+        "variable_description": "Ensure sustainable consumption and production patterns",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 13",
+        "variable_description": "Take urgent action to combat climate change and its impacts",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 14",
+        "variable_description": "Conserve and sustainably use the oceans, seas and marine resources for sustainable development",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 15",
+        "variable_description": "Protect, restore and promote sustainable use of terrestrial ecosystems, sustainably manage forests, combat desertification, and halt and reverse land degradation and halt biodiversity loss",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 16",
+        "variable_description": "Promote peaceful and inclusive societies for sustainable development, provide access to justice for all and build effective, accountable and inclusive institutions at all levels",
+        "context": ""
+    },
+    {
+        "variable_name": "SDG 17",
+        "variable_description": "Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development",
+        "context": ""
+    }
+]

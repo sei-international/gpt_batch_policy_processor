@@ -75,7 +75,7 @@ def embed_schema(openai_client, schema):
         if 'context' in schema[col]:
             context = schema[col]["context"]
             if len(context) > 1:
-                prompt += f"{context}"
+                prompt += f". Context: {context}"
                 spec_dict["context"] = context
         spec_dict['embedding'] = embed_schema_col(openai_client, prompt)
         col_embeddings[col] = spec_dict

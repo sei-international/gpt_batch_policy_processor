@@ -58,7 +58,7 @@ def format_output_doc(output_doc, gpt_analyzer):
                     table.cell(col_i+1, 1).text = descr
                 if "context" in variable_specs[col_name]:
                     if len(variable_specs[col_name]["context"])>0:
-                        context = f"Context: {variable_specs[col_name]['context']}"
+                        context = f"{variable_specs[col_name]['context']}"
                         table.cell(col_i+1, 2).text = context
     except Exception as e:
         print(f"Error (format_output_doc()): {e}")

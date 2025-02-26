@@ -1,5 +1,5 @@
 from analysis import get_analyzer, get_task_types
-
+import re
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (
     Mail,
@@ -54,45 +54,70 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
     # st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
     st.markdown("""## Submit your processing request""")
 
+def upload_file(temp_dir):
+    st.subheader("I. Upload Policy Document(s)")
 
-def upload_zip(temp_dir):
-    st.subheader("I. Upload Zipfile of PDF's")
-    uploaded_zip = st.file_uploader(
-        "Compress a folder with your documents into a zip-file. The zip-file must have the same name as the folder. The folder must only contain PDF's; no subfolders allowed.",
-        type="zip",
+    # Single uploader for both PDF and ZIP files
+    uploaded_file = st.file_uploader(
+        "Upload a **single PDF** or a **ZIP file** containing multiple PDFs.",
+        type=["pdf", "zip"],
     )
+
     st.markdown(
-        "*Please note: uploaded documents will be procesed by OpenAI and may be used to train futher models. If you are concerned about the confidentiality of your documents, please contact us before use.*"
+        "*Please note: uploaded documents will be processed by OpenAI and may be used to train further models. "
+        "If you are concerned about the confidentiality of your documents, please contact us before use.*"
     )
-    if uploaded_zip is not None:
-        st.success(
-            """Zip-file uploaded successfully! \n
-Please first run on a subset of PDF's to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.""",
-            icon="✅",
-        )
-        pdfs = []
-        with NamedTemporaryFile(delete=False, suffix=".zip") as temp_zip:
-            temp_zip.write(uploaded_zip.getvalue())
-            st.session_state["temp_zip_path"] = temp_zip.name
-        with zipfile.ZipFile(st.session_state["temp_zip_path"], "r") as zip_ref:
-            zip_ref.extractall(temp_dir)
-        for subdir in os.listdir(temp_dir):
-            subdir_path = os.path.join(temp_dir, subdir)
-            for filename in os.listdir(subdir_path):
-                if filename.endswith(".pdf"):
-                    file_path = os.path.join(subdir_path, filename)
-                    pdfs.append(file_path)
+
+    pdfs = []  # Store uploaded PDF file paths
+
+    if uploaded_file is not None:
+        file_name = uploaded_file.name
+
+        if file_name.endswith(".pdf"):
+            # Save the single uploaded PDF to a temporary location
+             file_path = os.path.join(temp_dir, file_name)
+             with open(file_path, "wb") as f:
+                f.write(uploaded_file.getvalue())
+             pdfs.append(file_path)
+
+        elif file_name.endswith(".zip"):
+            with NamedTemporaryFile(delete=False, suffix=".zip") as temp_zip:
+                temp_zip.write(uploaded_file.getvalue())
+                st.session_state["temp_zip_path"] = temp_zip.name
+
+            with zipfile.ZipFile(st.session_state["temp_zip_path"], "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
+
+            for subdir in os.listdir(temp_dir):
+                subdir_path = os.path.join(temp_dir, subdir)
+                for filename in os.listdir(subdir_path):
+                    if filename.endswith(".pdf"):
+                        file_path = os.path.join(subdir_path, filename)
+                        pdfs.append(file_path)
+
+    if pdfs:
         st.session_state["pdfs"] = pdfs
-        if "max_files" not in st.session_state:
-            st.session_state["max_files"] = 3
-        if "file_select_label" not in st.session_state:
-            st.session_state["file_select_label"] = "Select 1-3 subfiles to run on"
-        checked = st.checkbox(
-            "Run on subset",
-            value=True,
-            help="Do not turn this off until you are ready for your final run.",
-        )
+        st.success(f"Uploaded {len(pdfs)} document(s) successfully! Please first run on a subset of PDFs to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.", icon="✅")
+
+        if len(pdfs) == 1:
+            # Disable the subset checkbox if only one PDF is uploaded
+            st.session_state["max_files"] = None
+            st.session_state["file_select_label"] = "No need to select subset for analysis."
+            checked = False  # Automatically set the "Run on subset" checkbox to off
+        else:
+            if "max_files" not in st.session_state:
+                st.session_state["max_files"] = 3
+            if "file_select_label" not in st.session_state:
+                st.session_state["file_select_label"] = "Select 1-3 subfiles to run on"
+
+            checked = st.checkbox(
+                "Run on subset",
+                value=True,
+                help="Do not turn this off until you are ready for your final run.",
+            )
+
         if checked:
+            st.session_state["run_disabled"] = False  # Enable run if subset is selected
             fnames = {os.path.basename(p): p for p in pdfs}
             first = os.path.basename(pdfs[0])
             selected_fnames = st.multiselect(
@@ -105,34 +130,36 @@ Please first run on a subset of PDF's to fine-tune functionality. Careless proce
                 fnames[selected_fname] for selected_fname in selected_fnames
             ]
         else:
-            st.markdown(
-                "After fine-tuning the main query template and variable definitions below, you may run the "
-                "Tool for all policy documents of interest. Please contact william.babis@sei.org for access."
-            )
-            passcode = st.text_input("Enter passcode")
-            if passcode:
-                apikey_ids = {
-                    st.secrets["access_password"]: "openai_apikey",
-                    st.secrets["access_password_adis"]: "openai_apikey_adis",
-                    st.secrets["access_password_sharone"]: "openai_apikey_sharone",
-                    st.secrets["access_password_bb"]: "openai_apikey_bb",
-                }
-                if passcode in apikey_ids:
-                    st.session_state["apikey_id"] = apikey_ids[passcode]
-                    st.session_state["is_test_run"] = False
-                    st.session_state["max_files"] = None
-                    st.session_state["file_select_label"] = (
-                        "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
-                    )
-                    st.success(
-                        "Access granted. All PDFs in the zip-file will be processed. Please proceed.",
-                        icon="✅",
-                    )
+            if len(pdfs) > 1: # If not checked to run on subset and there is more than 1 PDF
+                passcode = st.text_input("Enter passcode", type="password")
+                if passcode:
+                    apikey_ids = {
+                        st.secrets["access_password"]: "openai_apikey",
+                        st.secrets["access_password_adis"]: "openai_apikey_adis",
+                        st.secrets["access_password_sharone"]: "openai_apikey_sharone",
+                        st.secrets["access_password_bb"]: "openai_apikey_bb",
+                    }
+                    if passcode in apikey_ids:
+                        st.session_state["apikey_id"] = apikey_ids[passcode]
+                        st.session_state["is_test_run"] = False
+                        st.session_state["max_files"] = None
+                        st.session_state["file_select_label"] = (
+                            "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
+                        )
+                        st.session_state["run_disabled"] = False  # Enable Run button
+                        st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
+                    else:
+                        st.session_state["run_disabled"] = True  # Disable Run button
+                        st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
                 else:
-                    st.error(
-                        "Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.",
-                        icon="❌",
-                    )
+                    st.session_state["run_disabled"] = True  # Disable Run button
+                    st.error("You need a passcode to proceed. If you do not have one, please select 'Run on subset' above.", icon="❌")
+            else: # If not checks and there is 1 PDF, we don't need a passcode
+                st.session_state["selected_pdfs"] = [pdfs[0]]
+                st.session_state["run_disabled"] = False  # Enable Run if only one PDF
+    else:
+        st.warning("Please upload a **PDF** or a **ZIP file** containing PDFs.", icon="⚠️")
+
 
 
 def input_main_query():
@@ -308,14 +335,27 @@ def process_table():
         for _, row in df.iterrows()
     }
 
+# Validate email, since it is required
+def is_valid_email(email):
+    # Expression for validating an email
+    email_regex = r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"
+    validated = re.match(email_regex, email) is not None
+    return validated
 
 def input_email():
     st.markdown(
-        "For variables with short descriptions, processing time will be about 1 minute per 100 pdf-pages per variable."
+        "For variables with short descriptions, processing time will be about 1 minute per 100 PDF pages per variable."
     )
-    st.session_state["email"] = st.text_input(
-        "Enter your email where you'd like to recieve the results:"
-    )
+
+    email = st.text_input("Enter your email where you'd like to receive the results:")
+
+    if "email" not in st.session_state:
+        st.session_state["email"] = None  # Set to None if email is empty, for warning to user
+    if not is_valid_email(email):
+        st.session_state["email"] = None # Set to None if email is invalid, for warning to user
+    else:
+        st.session_state["email"] = email  # Store the email entered in the session state if there are no errors
+
 
 
 def build_interface(tmp_dir):
@@ -324,7 +364,7 @@ def build_interface(tmp_dir):
     if "is_test_run" not in st.session_state:
         st.session_state["is_test_run"] = True
     load_text()
-    upload_zip(tmp_dir)
+    upload_file(tmp_dir)
     input_main_query()
     if "output_format_options" not in st.session_state:
         st.session_state["output_format_options"] = {
@@ -383,6 +423,9 @@ def get_user_inputs():
         pdfs = st.session_state["selected_pdfs"]
     main_query = st.session_state["main_query_input"]
     email = st.session_state["email"]
+    if not email:
+        st.error("⚠️ A valid email is required. Please enter your email to proceed.")
+        return
     variable_specs = process_table()
     task_type = st.session_state["task_type"]
     output_fmt = st.session_state["output_format_options"][

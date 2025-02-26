@@ -99,18 +99,25 @@ def upload_file(temp_dir):
         st.session_state["pdfs"] = pdfs
         st.success(f"Uploaded {len(pdfs)} document(s) successfully! Please first run on a subset of PDFs to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.", icon="✅")
 
-        if "max_files" not in st.session_state:
-            st.session_state["max_files"] = 3
-        if "file_select_label" not in st.session_state:
-            st.session_state["file_select_label"] = "Select 1-3 subfiles to run on"
+        if len(pdfs) == 1:
+            # Disable the subset checkbox if only one PDF is uploaded
+            st.session_state["max_files"] = None
+            st.session_state["file_select_label"] = "No need to select subset for analysis."
+            checked = False  # Automatically set the "Run on subset" checkbox to off
+        else:
+            if "max_files" not in st.session_state:
+                st.session_state["max_files"] = 3
+            if "file_select_label" not in st.session_state:
+                st.session_state["file_select_label"] = "Select 1-3 subfiles to run on"
 
-        checked = st.checkbox(
-            "Run on subset",
-            value=True,
-            help="Do not turn this off until you are ready for your final run.",
-        )
+            checked = st.checkbox(
+                "Run on subset",
+                value=True,
+                help="Do not turn this off until you are ready for your final run.",
+            )
 
         if checked:
+            st.session_state["run_disabled"] = False  # Enable run if subset is selected
             fnames = {os.path.basename(p): p for p in pdfs}
             first = os.path.basename(pdfs[0])
             selected_fnames = st.multiselect(
@@ -123,36 +130,33 @@ def upload_file(temp_dir):
                 fnames[selected_fname] for selected_fname in selected_fnames
             ]
         else:
-            st.markdown(
-                "After fine-tuning the main query template and variable definitions below, you may run the "
-                "Tool for all policy documents of interest. Please contact william.babis@sei.org for access."
-            )
-            passcode = st.text_input("Enter passcode")
-
-            if passcode:
-                apikey_ids = {
-                    st.secrets["access_password"]: "openai_apikey",
-                    st.secrets["access_password_adis"]: "openai_apikey_adis",
-                    st.secrets["access_password_sharone"]: "openai_apikey_sharone",
-                    st.secrets["access_password_bb"]: "openai_apikey_bb",
-                }
-                if passcode in apikey_ids:
-                    st.session_state["apikey_id"] = apikey_ids[passcode]
-                    st.session_state["is_test_run"] = False
-                    st.session_state["max_files"] = None
-                    st.session_state["file_select_label"] = (
-                        "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
-                    )
-                    st.success(
-                        "Access granted. All PDFs in the zip-file will be processed. Please proceed.",
-                        icon="✅",
-                    )
+            if len(pdfs) > 1: # If not checked to run on subset and there is more than 1 PDF
+                passcode = st.text_input("Enter passcode", type="password")
+                if passcode:
+                    apikey_ids = {
+                        st.secrets["access_password"]: "openai_apikey",
+                        st.secrets["access_password_adis"]: "openai_apikey_adis",
+                        st.secrets["access_password_sharone"]: "openai_apikey_sharone",
+                        st.secrets["access_password_bb"]: "openai_apikey_bb",
+                    }
+                    if passcode in apikey_ids:
+                        st.session_state["apikey_id"] = apikey_ids[passcode]
+                        st.session_state["is_test_run"] = False
+                        st.session_state["max_files"] = None
+                        st.session_state["file_select_label"] = (
+                            "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
+                        )
+                        st.session_state["run_disabled"] = False  # Enable Run button
+                        st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
+                    else:
+                        st.session_state["run_disabled"] = True  # Disable Run button
+                        st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
                 else:
-                    st.error(
-                        "Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.",
-                        icon="❌",
-                    )
-
+                    st.session_state["run_disabled"] = True  # Disable Run button
+                    st.error("You need a passcode to proceed. If you do not have one, please select 'Run on subset' above.", icon="❌")
+            else: # If not checks and there is 1 PDF, we don't need a passcode
+                st.session_state["selected_pdfs"] = [pdfs[0]]
+                st.session_state["run_disabled"] = False  # Enable Run if only one PDF
     else:
         st.warning("Please upload a **PDF** or a **ZIP file** containing PDFs.", icon="⚠️")
 

@@ -24,23 +24,23 @@ Usage:
 Run "python -m streamlit run .\main.py" to start the Streamlit application.
 """
 
-from interface import (
-    about_tab,
-    FAQ,
+from policytool import (
     build_interface,
     display_output,
     email_results,
     get_user_inputs,
-    load_header,
+    load_header
 )
-from query_gpt import new_openai_session, query_gpt_for_variable_specification
-from read_pdf import extract_text_chunks_from_pdf
-from relevant_excerpts import (
+from tabs.about import about_tab
+from tabs.faq import faq_tab
+from services.query_gpt import new_openai_session, query_gpt_for_variable_specification
+from utils.read_pdf import extract_text_chunks_from_pdf
+from utils.relevant_excerpts import (
     generate_all_embeddings,
     embed_variable_specifications,
     find_top_relevant_texts,
 )
-from results import format_output_doc, get_output_fname, output_results, output_metrics
+from utils.results import format_output_doc, get_output_fname, output_results, output_metrics
 
 from docx import Document
 from tempfile import TemporaryDirectory
@@ -301,7 +301,7 @@ if __name__ == "__main__":
                 with tab2:
                     about_tab()
                 with tab3:
-                    FAQ()
+                    faq_tab()
     except Exception as e:
         log(
             f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id:{e}"

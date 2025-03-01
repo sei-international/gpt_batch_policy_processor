@@ -1,4 +1,4 @@
-from analysis import get_analyzer, get_task_types
+from utils.analysis import get_analyzer, get_task_types
 import re
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (
@@ -33,8 +33,6 @@ Users can define specific queries to extract targeted information from any colle
     </div>
     """
     st.markdown(html_temp, unsafe_allow_html=True)
-
-
 def load_text():
     instructions = """
 ## How to use
@@ -455,28 +453,3 @@ def display_output(docx_fname):
         )
 
 
-def about_tab():
-    text = """
-## Terms of use
-**Open access to the data sets** \n
-The GPT-Batch Policy Processor (beta) tool has been published on May 1st, 2024.
-\n
-**The GPT-Batch Policy Processor (beta) tool** \n
-Babis, William / Munoz Cabre, Miquel / Dzebo, Adis / Martelo, Camilo / Salzano, Cora / Torres Morales, Eileen / Arsadita, Ferosa (2024): GPT-Batch Policy Processor (beta). Stockholm Environment Institute (SEI).
-\n
-**Referring to GPT-Batch Policy Processor (beta) tool analysis** \n
- The Stockholm Environment Institute (SEI) hold the copyright of the GPT-Batch Policy Processor (beta) tool. It is 
- licensed under Creative Commons and you are free to copy and redistribute material derived from the  GPT-Batch Policy 
- Processor (beta) tool by following the guideline of the Creative Commons License. [CC BY-NC-NA](https://creativecommons.org/licenses/by-nc-sa/4.0/) (Attribution, NonCommercial, ShareAlike).
-"""
-    st.markdown(text)
-
-
-def FAQ():
-    text = """
-# Frequently asked questions \n
-
-## Coming soon \n
-
-"""
-    st.markdown(text)

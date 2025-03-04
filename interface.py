@@ -50,7 +50,6 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 9:** Re-run once more on all policy documents."""
 
     st.markdown(instructions)
-    # st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
     st.markdown("""## Submit your processing request""")
 
 def upload_file(temp_dir):
@@ -63,7 +62,10 @@ def upload_file(temp_dir):
     active_tab = st.radio(
         "Select analysis type:", 
         ["Primary Analysis", "Secondary Analysis", "URLs"],
-        horizontal=True
+        horizontal=True,
+        help="""Select **Primary Analysis** if using tool for the first time on large text documents. 
+        **Secondary Analysis** may be run on the output results of Primary Analysis. 
+        Use **URLs** if you are trying to sort through relevent articles."""
         )
 
     if active_tab != st.session_state["active_tab"]:
@@ -76,7 +78,6 @@ def upload_file(temp_dir):
     st.session_state["active_tab"] = active_tab  # Update session state
 
     pdfs = []  # Store uploaded PDF file paths
-    # Uploader for single PDF
     if active_tab == "Primary Analysis":
         uploaded_file = st.file_uploader(
             "Upload a **single PDF** or a **ZIP file** containing multiple PDFs.",
@@ -166,10 +167,10 @@ def upload_file(temp_dir):
                             st.session_state["run_disabled"] = False  # Enable Run button
                             st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
                         else:
-                            st.session_state["run_disabled"] = True  # Disable Run button
+                            st.session_state["run_disabled"] = True
                             st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
                     else:
-                        st.session_state["run_disabled"] = True  # Disable Run button
+                        st.session_state["run_disabled"] = True  
                         st.error("You need a passcode to proceed. If you do not have one, please select 'Run on subset' above.", icon="❌")
                 else: # If not checks and there is 1 PDF, we don't need a passcode
                     st.session_state["selected_pdfs"] = [pdfs[0]]
@@ -198,10 +199,16 @@ def upload_file(temp_dir):
                     temp_path = temp_file.name
 
                 if file_ext == "docx":
-                    # Convert Word to PDF
+                    # Convert DOCX to PDF
                     pdf_path = temp_path.replace(".docx", ".pdf")
-                    convert(temp_path, pdf_path)
+                    try:
+                        convert(temp_path, pdf_path)  # Ensure the file conversion is successful
+                        if not os.path.exists(pdf_path):
+                            st.error(f"Failed to convert the DOCX file to PDF. Check conversion process.")
+                    except Exception as e:
+                        st.error(f"Error during DOCX to PDF conversion: {e}", icon="❌")
                 else:
+                    # Handle PDF files directly
                     pdf_path = temp_path
                 with open(pdf_path, "wb") as f:
                     f.write(uploaded_file.getvalue())

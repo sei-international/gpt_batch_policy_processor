@@ -24,7 +24,7 @@ Usage:
 Run "python -m streamlit run .\main.py" to start the Streamlit application.
 """
 
-from policytool import (
+from interface import (
     build_interface,
     display_output,
     email_results,

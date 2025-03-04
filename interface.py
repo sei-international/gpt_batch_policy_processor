@@ -54,109 +54,158 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 
 def upload_file(temp_dir):
     st.subheader("I. Upload Policy Document(s)")
+    # Track active tab in session state
+    if "active_tab" not in st.session_state:
+        st.session_state["active_tab"] = "Single Document"
 
-    # Single uploader for both PDF and ZIP files
-    uploaded_file = st.file_uploader(
-        "Upload a **single PDF** or a **ZIP file** containing multiple PDFs.",
-        type=["pdf", "zip"],
-    )
+    # Use radio buttons instead of tabs to enforce exclusivity
+    active_tab = st.radio("Select analysis type:", ["Primary Analysis", "Secondary Analysis", "URLs"])
 
-    st.markdown(
-        "*Please note: uploaded documents will be processed by OpenAI and may be used to train further models. "
-        "If you are concerned about the confidentiality of your documents, please contact us before use.*"
-    )
+    if active_tab != st.session_state["active_tab"]:
+        # Clear any previous uploads when switching tabs
+        st.session_state["pdfs"] = []
+        st.session_state["selected_pdfs"] = []
+        st.session_state["temp_zip_path"] = None
+        st.session_state["run_disabled"] = True  # Prevent running with no files
+
+    st.session_state["active_tab"] = active_tab  # Update session state
 
     pdfs = []  # Store uploaded PDF file paths
+    # Uploader for single PDF
+    if active_tab == "Primary Analysis":
+        uploaded_file = st.file_uploader(
+            "Upload a **single PDF** or a **ZIP file** containing multiple PDFs.",
+            type=["zip", "pdf"],
+        )
 
-    if uploaded_file is not None:
-        file_name = uploaded_file.name
+        st.markdown(
+            "*Please note: uploaded documents will be processed by OpenAI and may be used to train further models. "
+            "If you are concerned about the confidentiality of your documents, please contact us before use.*"
+        )
+        if uploaded_file is not None:
+            file_name = uploaded_file.name
 
-        if file_name.endswith(".pdf"):
-            # Save the single uploaded PDF to a temporary location
-             file_path = os.path.join(temp_dir, file_name)
-             with open(file_path, "wb") as f:
-                f.write(uploaded_file.getvalue())
-             pdfs.append(file_path)
+            if file_name.endswith(".pdf"):
+                # Save the single uploaded PDF to a temporary location
+                file_path = os.path.join(temp_dir, file_name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getvalue())
+                pdfs.append(file_path)
 
-        elif file_name.endswith(".zip"):
-            with NamedTemporaryFile(delete=False, suffix=".zip") as temp_zip:
-                temp_zip.write(uploaded_file.getvalue())
-                st.session_state["temp_zip_path"] = temp_zip.name
+            elif file_name.endswith(".zip"):
+                with NamedTemporaryFile(delete=False, suffix=".zip") as temp_zip:
+                    temp_zip.write(uploaded_file.getvalue())
+                    st.session_state["temp_zip_path"] = temp_zip.name
 
-            with zipfile.ZipFile(st.session_state["temp_zip_path"], "r") as zip_ref:
-                zip_ref.extractall(temp_dir)
+                with zipfile.ZipFile(st.session_state["temp_zip_path"], "r") as zip_ref:
+                    zip_ref.extractall(temp_dir)
 
-            for subdir in os.listdir(temp_dir):
-                subdir_path = os.path.join(temp_dir, subdir)
-                for filename in os.listdir(subdir_path):
-                    if filename.endswith(".pdf"):
-                        file_path = os.path.join(subdir_path, filename)
-                        pdfs.append(file_path)
+                for subdir in os.listdir(temp_dir):
+                    subdir_path = os.path.join(temp_dir, subdir)
+                    for filename in os.listdir(subdir_path):
+                        if filename.endswith(".pdf"):
+                            file_path = os.path.join(subdir_path, filename)
+                            pdfs.append(file_path)
 
-    if pdfs:
-        st.session_state["pdfs"] = pdfs
-        st.success(f"Uploaded {len(pdfs)} document(s) successfully! Please first run on a subset of PDFs to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.", icon="✅")
+        if pdfs:
+            st.session_state["pdfs"] = pdfs
+            st.success(f"Uploaded {len(pdfs)} document(s) successfully! Please first run on a subset of PDFs to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.", icon="✅")
 
-        if len(pdfs) == 1:
-            # Disable the subset checkbox if only one PDF is uploaded
-            st.session_state["max_files"] = None
-            st.session_state["file_select_label"] = "No need to select subset for analysis."
-            checked = False  # Automatically set the "Run on subset" checkbox to off
-        else:
-            if "max_files" not in st.session_state:
-                st.session_state["max_files"] = 3
-            if "file_select_label" not in st.session_state:
-                st.session_state["file_select_label"] = "Select 1-3 subfiles to run on"
+            if len(pdfs) == 1:
+                # Disable the subset checkbox if only one PDF is uploaded
+                st.session_state["max_files"] = None
+                st.session_state["file_select_label"] = "No need to select subset for analysis."
+                checked = False  # Automatically set the "Run on subset" checkbox to off
+            else:
+                if "max_files" not in st.session_state:
+                    st.session_state["max_files"] = 3
+                if "file_select_label" not in st.session_state:
+                    st.session_state["file_select_label"] = "Select 1-3 subfiles to run on"
 
-            checked = st.checkbox(
-                "Run on subset",
-                value=True,
-                help="Do not turn this off until you are ready for your final run.",
-            )
+                checked = st.checkbox(
+                    "Run on subset",
+                    value=True,
+                    help="Do not turn this off until you are ready for your final run.",
+                )
 
-        if checked:
-            st.session_state["run_disabled"] = False  # Enable run if subset is selected
-            fnames = {os.path.basename(p): p for p in pdfs}
-            first = os.path.basename(pdfs[0])
-            selected_fnames = st.multiselect(
-                st.session_state["file_select_label"],
-                fnames.keys(),
-                default=[first],
-                max_selections=st.session_state["max_files"],
-            )
-            st.session_state["selected_pdfs"] = [
-                fnames[selected_fname] for selected_fname in selected_fnames
-            ]
-        else:
-            if len(pdfs) > 1: # If not checked to run on subset and there is more than 1 PDF
-                passcode = st.text_input("Enter passcode", type="password")
-                if passcode:
-                    apikey_ids = {
-                        st.secrets["access_password"]: "openai_apikey",
-                        st.secrets["access_password_adis"]: "openai_apikey_adis",
-                        st.secrets["access_password_sharone"]: "openai_apikey_sharone",
-                        st.secrets["access_password_bb"]: "openai_apikey_bb",
-                    }
-                    if passcode in apikey_ids:
-                        st.session_state["apikey_id"] = apikey_ids[passcode]
-                        st.session_state["is_test_run"] = False
-                        st.session_state["max_files"] = None
-                        st.session_state["file_select_label"] = (
-                            "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
-                        )
-                        st.session_state["run_disabled"] = False  # Enable Run button
-                        st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
+            if checked:
+                st.session_state["run_disabled"] = False  # Enable run if subset is selected
+                fnames = {os.path.basename(p): p for p in pdfs}
+                first = os.path.basename(pdfs[0])
+                selected_fnames = st.multiselect(
+                    st.session_state["file_select_label"],
+                    fnames.keys(),
+                    default=[first],
+                    max_selections=st.session_state["max_files"],
+                )
+                st.session_state["selected_pdfs"] = [
+                    fnames[selected_fname] for selected_fname in selected_fnames
+                ]
+            else:
+                if len(pdfs) > 1: # If not checked to run on subset and there is more than 1 PDF
+                    passcode = st.text_input("Enter passcode", type="password")
+                    if passcode:
+                        apikey_ids = {
+                            st.secrets["access_password"]: "openai_apikey",
+                            st.secrets["access_password_adis"]: "openai_apikey_adis",
+                            st.secrets["access_password_sharone"]: "openai_apikey_sharone",
+                            st.secrets["access_password_bb"]: "openai_apikey_bb",
+                        }
+                        if passcode in apikey_ids:
+                            st.session_state["apikey_id"] = apikey_ids[passcode]
+                            st.session_state["is_test_run"] = False
+                            st.session_state["max_files"] = None
+                            st.session_state["file_select_label"] = (
+                                "Select any number of PDFs to analyze. Or, uncheck 'Run on Subset' to analyze all uploaded PDFs"
+                            )
+                            st.session_state["run_disabled"] = False  # Enable Run button
+                            st.success("Access granted. All PDFs in the zip-file will be processed. Please proceed.", icon="✅")
+                        else:
+                            st.session_state["run_disabled"] = True  # Disable Run button
+                            st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
                     else:
                         st.session_state["run_disabled"] = True  # Disable Run button
-                        st.error("Incorrect password. Click 'Run on subset' above. The 1-3 documents specified will be processed.", icon="❌")
-                else:
-                    st.session_state["run_disabled"] = True  # Disable Run button
-                    st.error("You need a passcode to proceed. If you do not have one, please select 'Run on subset' above.", icon="❌")
-            else: # If not checks and there is 1 PDF, we don't need a passcode
-                st.session_state["selected_pdfs"] = [pdfs[0]]
-                st.session_state["run_disabled"] = False  # Enable Run if only one PDF
-    else:
-        st.warning("Please upload a **PDF** or a **ZIP file** containing PDFs.", icon="⚠️")
+                        st.error("You need a passcode to proceed. If you do not have one, please select 'Run on subset' above.", icon="❌")
+                else: # If not checks and there is 1 PDF, we don't need a passcode
+                    st.session_state["selected_pdfs"] = [pdfs[0]]
+                    st.session_state["run_disabled"] = False  # Enable Run if only one PDF
+        else:
+            st.warning("Please upload a **PDF** or a **ZIP file** containing PDFs.", icon="⚠️")
+    elif active_tab == "Secondary Analysis":
+        uploaded_file = st.file_uploader(
+            "Upload a **PDF** or **Word Doc** outputted from your Primary Analysis.",
+            type=["pdf", "doc", "docx"],
+            accept_multiple_files=False  # Ensures only one file is uploaded
+        )
+
+        st.markdown(
+            "*Please note: uploaded documents will be processed by OpenAI and may be used to train further models. "
+            "If you are concerned about the confidentiality of your documents, please contact us before use.*"
+        )
+        
+        if uploaded_file is not None:
+            file_name = uploaded_file.name
+            file_ext = file_name.split(".")[-1].lower()
+            
+            if file_ext in ["pdf", "doc", "docx"]:
+                file_path = os.path.join(temp_dir, file_name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getvalue())
+                
+                st.session_state["pdfs"] = [file_path]  # Store uploaded file
+                st.session_state["selected_pdfs"] = [file_path]
+                st.session_state["run_disabled"] = False  # Enable run
+                
+                st.success(f"Uploaded {file_name} successfully!", icon="✅")
+            else:
+                st.error("Invalid file type. Please upload a PDF or Word document.", icon="❌")
+        else:
+            st.warning("Please upload a **PDF** or **Word document**.", icon="⚠️")
+    elif active_tab == "URLs":
+        st.markdown(
+        "More soon."
+        )
+    
 
 
 

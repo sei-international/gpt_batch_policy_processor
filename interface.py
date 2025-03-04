@@ -138,6 +138,7 @@ def upload_file(temp_dir):
                         st.secrets["access_password_adis"]: "openai_apikey_adis",
                         st.secrets["access_password_sharone"]: "openai_apikey_sharone",
                         st.secrets["access_password_bb"]: "openai_apikey_bb",
+                        st.secrets["access_password_LAC"]: "openai_apikey_LAC",
                     }
                     if passcode in apikey_ids:
                         st.session_state["apikey_id"] = apikey_ids[passcode]

@@ -15,6 +15,7 @@ import json
 import os
 import pandas as pd
 import streamlit as st
+from docx2pdf import convert
 import zipfile
 
 
@@ -59,7 +60,11 @@ def upload_file(temp_dir):
         st.session_state["active_tab"] = "Single Document"
 
     # Use radio buttons instead of tabs to enforce exclusivity
-    active_tab = st.radio("Select analysis type:", ["Primary Analysis", "Secondary Analysis", "URLs"])
+    active_tab = st.radio(
+        "Select analysis type:", 
+        ["Primary Analysis", "Secondary Analysis", "URLs"],
+        horizontal=True
+        )
 
     if active_tab != st.session_state["active_tab"]:
         # Clear any previous uploads when switching tabs
@@ -174,7 +179,7 @@ def upload_file(temp_dir):
     elif active_tab == "Secondary Analysis":
         uploaded_file = st.file_uploader(
             "Upload a **PDF** or **Word Doc** outputted from your Primary Analysis.",
-            type=["pdf", "doc", "docx"],
+            type=["pdf", "docx"],
             accept_multiple_files=False  # Ensures only one file is uploaded
         )
 
@@ -187,13 +192,24 @@ def upload_file(temp_dir):
             file_name = uploaded_file.name
             file_ext = file_name.split(".")[-1].lower()
             
-            if file_ext in ["pdf", "doc", "docx"]:
-                file_path = os.path.join(temp_dir, file_name)
-                with open(file_path, "wb") as f:
+            if file_ext in ["pdf", "docx"]:
+                with NamedTemporaryFile(delete=False, suffix=f".{file_ext}") as temp_file:
+                    temp_file.write(uploaded_file.getvalue())
+                    temp_path = temp_file.name
+
+                if file_ext == "docx":
+                    # Convert Word to PDF
+                    pdf_path = temp_path.replace(".docx", ".pdf")
+                    convert(temp_path, pdf_path)
+                else:
+                    pdf_path = temp_path
+                with open(pdf_path, "wb") as f:
                     f.write(uploaded_file.getvalue())
+                st.session_state["max_files"] = None
+                st.session_state["file_select_label"] = "No need to select subset for analysis."
                 
-                st.session_state["pdfs"] = [file_path]  # Store uploaded file
-                st.session_state["selected_pdfs"] = [file_path]
+                st.session_state["pdfs"] = [pdf_path]  # Store uploaded file
+                st.session_state["selected_pdfs"] = [pdf_path]
                 st.session_state["run_disabled"] = False  # Enable run
                 
                 st.success(f"Uploaded {file_name} successfully!", icon="✅")

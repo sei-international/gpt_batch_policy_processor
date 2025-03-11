@@ -35,6 +35,7 @@ from tabs.about import about_tab
 from tabs.faq import faq_tab
 from services.query_gpt import new_openai_session, query_gpt_for_variable_specification
 from utils.read_pdf import extract_text_chunks_from_pdf
+from utils.read_docx import extract_text_chunks_from_docx
 from utils.relevant_excerpts import (
     generate_all_embeddings,
     embed_variable_specifications,
@@ -58,6 +59,23 @@ def get_resource_path(relative_path):
     """
     return relative_path
 
+def extract_text_chunks(file_path, max_chunk_size):
+    """
+    Extracts text chunks from a file (PDF or DOCX).
+
+    Args:
+        file_path (str): The path to the file.
+        max_chunk_size (int): The maximum size of each text chunk.
+
+    Returns:
+        list: A list of dictionaries containing text chunks, number of pages, character count, and section number.
+    """
+    if file_path.lower().endswith(".pdf"):
+        return extract_text_chunks_from_pdf(file_path, max_chunk_size)
+    elif file_path.lower().endswith(".docx"):
+        return extract_text_chunks_from_docx(file_path, max_chunk_size)
+    else:
+        return [{"error": f"Unsupported file format: {file_path}"}]
 
 def extract_policy_doc_info(
     gpt_analyzer,
@@ -198,12 +216,12 @@ def main(gpt_analyzer, openai_apikey):
     total_start_time = time.time()
     failed_pdfs = []
     for pdf in gpt_analyzer.pdfs:
-        pdf_path = get_resource_path(f"{pdf.replace('.pdf','')}.pdf")
+        pdf_path = get_resource_path(pdf)
         try:
             country_start_time = time.time()
             # 1) read pdf
             text_chunk_size = gpt_analyzer.get_chunk_size()
-            text_sections = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
+            text_sections = extract_text_chunks(pdf_path, text_chunk_size)
             if "error" in text_sections[0]:
                 failed_pdfs.append(pdf)
                 print(f"Failed: {pdf} with {text_sections[0]['error']}")
@@ -218,9 +236,12 @@ def main(gpt_analyzer, openai_apikey):
                     text_section[k]
                     for k in ["text_chunks", "num_pages", "num_chars", "section_num"]
                 ]
+                print(text_chunks)
                 if num_sections > 0:
+                    print("num_sections more than 0")
                     output_pdf_path = f"{pdf_path} ({section} of {len(text_sections)})"
                 else:
+                    print("not more than 0")
                     output_pdf_path = f"{pdf_path}"
                 num_pages_in_pdf += num_pages
                 total_num_pages += num_pages

@@ -15,7 +15,6 @@ import json
 import os
 import pandas as pd
 import streamlit as st
-from docx2pdf import convert
 import zipfile
 
 
@@ -194,22 +193,8 @@ def upload_file(temp_dir):
             file_ext = file_name.split(".")[-1].lower()
             
             if file_ext in ["pdf", "docx"]:
-                with NamedTemporaryFile(delete=False, suffix=f".{file_ext}") as temp_file:
-                    temp_file.write(uploaded_file.getvalue())
-                    temp_path = temp_file.name
-
-                if file_ext == "docx":
-                    # Convert DOCX to PDF
-                    pdf_path = temp_path.replace(".docx", ".pdf")
-                    try:
-                        convert(temp_path, pdf_path)  # Ensure the file conversion is successful
-                        if not os.path.exists(pdf_path):
-                            st.error(f"Failed to convert the DOCX file to PDF. Check conversion process.")
-                    except Exception as e:
-                        st.error(f"Error during DOCX to PDF conversion: {e}", icon="❌")
-                else:
-                    # Handle PDF files directly
-                    pdf_path = temp_path
+                file_path = os.path.join(temp_dir, file_name)
+                pdf_path = file_path
                 with open(pdf_path, "wb") as f:
                     f.write(uploaded_file.getvalue())
                 st.session_state["max_files"] = None

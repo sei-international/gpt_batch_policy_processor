@@ -136,7 +136,7 @@ def upload_file(temp_dir):
                     apikey_ids = {
                         st.secrets["access_password"]: "openai_apikey",
                         st.secrets["access_password_adis"]: "openai_apikey_adis",
-                        st.secrets["access_password_sharone"]: "openai_apikey_sharone",
+                        st.secrets["access_password_urbanadaptation"]: "openai_apikey_adaptation",
                         st.secrets["access_password_bb"]: "openai_apikey_bb",
                     }
                     if passcode in apikey_ids:

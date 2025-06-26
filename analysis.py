@@ -61,6 +61,7 @@ class GPTAnalyzer:
                 var_val = var_val[1:-1]
             if len(var_val) > len(var_name):
                 if var_val[: len(var_name)] == var_name:
+                    print("var_val::", var_val)
                     var_val = var_val.replace(f"{var_name}: ", "", 1)
             gpt_responses[var_name] = {hdr: var_val}
         return gpt_responses
@@ -145,6 +146,8 @@ class CustomOutputAnalyzer(GPTAnalyzer):
         output_detail = df.loc[df["variable_name"] == var_name, "output_detail"].values[
             0
         ]
+        print("custom_output_fmt::", self.additional_info["custom_output_fmt"])
+        print("output_detail::", output_detail)
         return self.additional_info["custom_output_fmt"].replace(
             "{output_detail}", output_detail
         )
@@ -189,8 +192,10 @@ class QuoteAnalyzer(GPTAnalyzer):
             }
             if self.output_fmt == "quotes_sorted_and_labelled":
                 for col in self.additional_info.columns[1:]:
+                    print("col::", col)
                     label = f"relevant_{col.lower().replace(' ', '_')}"
                     output_json_fmt["list_of_quotes"][0][label] = "..."
+            print("output_json_fmt::", output_json_fmt)
             output_fmt_str = str(output_json_fmt).replace("]}", ", ...}]")
             return f"Return your response in the following json format: \n {output_fmt_str}"
 
@@ -257,10 +262,14 @@ class QuoteAnalyzer(GPTAnalyzer):
                     subcat_vals = None
                     if self.output_fmt == "quotes_sorted_and_labelled":
                         subcats = self.additional_info.columns[1:]
-                        subcat_vals = [
-                            quote_json[f"relevant_{subcat.replace(' ', '_').lower()}"]
-                            for subcat in subcats
-                        ]
+                        subcat_vals = []
+                        for subcat in subcats:
+                            # debug print
+                            print(f"Looking up subcat → {subcat!r}")
+                            key = f"relevant_{subcat.replace(' ', '_').lower()}"
+                            val = quote_json.get(key)
+                            print(f"  key: {key!r}  value: {val!r}")
+                            subcat_vals.append(val)
                     found_similar = False
                     for i, found_quote_val_list in enumerate(temp_quotes):
                         existing_quote, var_names = (

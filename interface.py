@@ -324,6 +324,7 @@ def process_table():
     df = df.fillna("")
     num_cols = df.shape[1]
     df.columns = ["variable_name", "variable_description", "context"][:num_cols]
+    print("df variable_name::", df["variable_name"])
     df["variable_name"] = df["variable_name"].replace("", pd.NA)
     df.dropna(subset=["variable_name"], inplace=True)
     df = df[df["variable_name"].notnull()]
@@ -388,33 +389,52 @@ def build_interface(tmp_dir):
     input_data_specs()
     st.divider()
     input_email()
+    if "output_file_type" not in st.session_state:
+        st.session_state["output_file_type"] = "Word (.docx)"
+    st.subheader("IV. Choose output format")
+    st.radio(
+        "Select output file type:",
+        ("Word (.docx)", "Excel (.xlsx)"),
+        key="output_file_type",
+    )
 
 
-def email_results(docx_fname, recipient_email):
+
+def email_results(fname, recipient_email):
+    # pick extension & mime based on the session
+    fmt = st.session_state.get("output_file_type", "Word (.docx)")
+    if fmt.startswith("Excel"):
+        ext = ".xlsx"
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        ext = ".docx"
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    # build the SendGrid message
     message = Mail(
         from_email=st.secrets["email"],
         to_emails=recipient_email,
         subject="Results: GPT Batch Policy Processor (Beta)",
         html_content="Attached is the document you requested.",
     )
-    with open(docx_fname, "rb") as f:
-        file_data = f.read()
-        f.close()
-    encoded_file = base64.b64encode(file_data).decode()
-    attachedFile = Attachment(
-        FileContent(encoded_file),
-        FileName("results.docx"),
-        FileType("application/docx"),
+
+    # read & attach
+    with open(fname, "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+    attachment = Attachment(
+        FileContent(data),
+        FileName(f"results{ext}"),
+        FileType(mime),
         Disposition("attachment"),
     )
-    message.attachment = attachedFile
+    message.attachment = attachment
+
     try:
         sg = SendGridAPIClient(st.secrets["sendgrid_apikey"])
-        response = sg.send(message)
-        print(response.status_code)
+        sg.send(message)
     except Exception as e:
-        print(e)
-        print(e.message)
+        st.error(f"Failed to email results: {e}")
+
 
 
 def get_user_inputs():
@@ -444,15 +464,25 @@ def get_user_inputs():
     )
 
 
-def display_output(docx_fname):
-    with open(docx_fname, "rb") as f:
-        binary_file = f.read()
-        st.download_button(
-            label="Download Results",
-            data=binary_file,
-            file_name="results.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
+def display_output(fname):
+    fmt = st.session_state.get("output_file_type", "Word (.docx)")
+    if fmt.startswith("Excel"):
+        ext = ".xlsx"
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        ext = ".docx"
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    with open(fname, "rb") as f:
+        data = f.read()
+
+    st.download_button(
+        label="Download Results",
+        data=data,
+        file_name=f"results{ext}",
+        mime=mime
+    )
+
 
 
 def about_tab():

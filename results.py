@@ -16,6 +16,7 @@ from datetime import datetime
 from docx.shared import Pt
 import os
 import pandas as pd
+import re
 
 
 # Function to generate the output file name based on the provided path function and file type
@@ -74,6 +75,7 @@ def format_output_doc(output_doc, gpt_analyzer):
         "The following query is run for each of the variable specifications listed below:"
     )
     query_paragraph = output_doc.add_paragraph()
+    print("main_query::", main_query)
     query_text = main_query.replace("Text: {excerpts}", "")
     query_run = query_paragraph.add_run(query_text)
     query_run.italic = True
@@ -131,3 +133,93 @@ def output_metrics(doc, num_docs, t, num_pages, failed_pdfs):
     )
     if len(failed_pdfs) > 0:
         doc.add_heading(f"Unable to process the following PDFs: {failed_pdfs}", 4)
+import pandas as pd
+import re
+
+def output_results_excel_policy(
+    rows: list[dict],
+    variable_specs: dict,
+    output_path: str,
+    custom: bool = False
+):
+    """
+    rows: list of dicts, one per document, mapping
+          variable_name -> GPT’s response
+    variable_specs: dict mapping variable_name -> {"variable_description":..., "context":...}
+    custom: whether to use the custom criteria/questions layout
+    """
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        for pdf_row in rows:
+            doc_name = pdf_row.get("Document", "Results")
+            sheet_name = doc_name[:31]
+            flat = []
+
+            for var_name, resp in pdf_row.items():
+                if var_name == "Document":
+                    continue
+
+                descr = variable_specs[var_name].get("variable_description", "")
+                ctx   = variable_specs[var_name].get("context", "")
+
+                if not custom:
+                    # DEFAULT MODE: split numbered quotes into separate rows
+                    raw = resp.get("Answer", resp) if isinstance(resp, dict) else str(resp)
+                    raw = raw.strip().strip('"').strip("'")
+                    parts = re.split(r'(?m)^\s*\d+\.\s*', raw)
+
+                    # If we found at least one numbered section, emit them
+                    if len(parts) > 1 and any(p.strip() for p in parts[1:]):
+                        for part in parts[1:]:
+                            flat.append({
+                                "variable name":        var_name,
+                                "variable description": descr,
+                                "context":              ctx,
+                                "quote":                part.strip(),
+                            })
+                    else:
+                        # otherwise guarantee one row per variable
+                        flat.append({
+                            "variable name":        var_name,
+                            "variable description": descr,
+                            "context":              ctx,
+                            "quote":                "No relevant content found.",
+                        })
+
+                else:
+                    # CUSTOM MODE
+                    raw = resp.strip() if isinstance(resp, str) else None
+                    if raw and raw.startswith("|"):
+                        lines = [l for l in raw.splitlines() if l.strip().startswith("|")]
+                        for md_row in lines[2:]:
+                            cells = [c.strip() for c in md_row.strip().strip("|").split("|")]
+                            if len(cells) >= 3:
+                                flat.append({
+                                    "criteria":      var_name,
+                                    "questions":     cells[0],
+                                    "Answer":        cells[1],
+                                    "justification": cells[2],
+                                })
+                        continue
+                    if isinstance(resp, dict):
+                        flat.append({
+                            "criteria":      var_name,
+                            "questions":     descr,
+                            "Answer":        resp.get("Answer", ""),
+                            "justification": resp.get("Justification", ""),
+                        })
+                    else:
+                        flat.append({
+                            "criteria":      var_name,
+                            "questions":     descr,
+                            "Answer":        str(resp),
+                            "justification": "",
+                        })
+
+            # write out the sheet
+            cols = (
+                ["variable name", "variable description", "context", "quote"]
+                if not custom else
+                ["criteria", "questions", "Answer", "justification"]
+            )
+            df = pd.DataFrame(flat, columns=cols)
+            df.to_excel(writer, sheet_name=sheet_name, index=False)

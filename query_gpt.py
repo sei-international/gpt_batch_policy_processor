@@ -5,9 +5,8 @@ import os
 def new_openai_session(openai_apikey):
     os.environ["OPENAI_API_KEY"] = openai_apikey
     client = OpenAI()
-    gpt_model = "gpt-4o"  # "o1-preview"
     max_num_chars = 25000
-    return client, gpt_model, max_num_chars
+    return client, max_num_chars
 
 
 def create_gpt_messages(query, run_on_full_text):
@@ -26,12 +25,20 @@ def create_gpt_messages(query, run_on_full_text):
 
 
 def chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs):
-    response = gpt_client.chat.completions.create(
-        model=gpt_model,
-        temperature=0,
-        response_format={"type": resp_fmt},
-        messages=msgs,
-    )
+    print(gpt_model)
+    if gpt_model == "gpt-4.1":
+        response = gpt_client.chat.completions.create(
+            model=gpt_model,
+            temperature=0,
+            response_format={"type": resp_fmt},
+            messages=msgs,
+        )
+    else:
+        response = gpt_client.chat.completions.create(
+            model=gpt_model,
+            response_format={"type": resp_fmt},
+            messages=msgs,
+        )
     return response.choices[0].message.content
 
 
@@ -53,7 +60,7 @@ def query_gpt_for_variable_specification(
     relevant_texts,
     run_on_full_text,
     gpt_client,
-    gpt_model,
+    gpt_model="o4-mini",
 ):
     query_template = gpt_analyzer.main_query
     excerpts = "\n".join(relevant_texts)

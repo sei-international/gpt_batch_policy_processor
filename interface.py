@@ -35,8 +35,10 @@ Users can define specific queries to extract targeted information from any colle
     st.markdown(html_temp, unsafe_allow_html=True)
 
 
-def load_text():
-    instructions = """
+def load_instructions():
+    with st.expander("ℹ️ Instructions", expanded=True):
+
+        instructions = """
 ## How to use
 Reading through each uploaded policy document, this tool will ask ChatGPT the main query template for each data 'variable' specified below. 
 - **Step 0:** IF YOU ARE A NEW USER, FIRST TEST FUNCTIONALITY ON 1-3 DOCUMENTS.
@@ -50,9 +52,9 @@ Reading through each uploaded policy document, this tool will ask ChatGPT the ma
 - **Step 8:** Once results are satisfactory, contact aipolicyreader@sei.org for access to full batch-processing functionality.
 - **Step 9:** Re-run once more on all policy documents."""
 
-    st.markdown(instructions)
-    # st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
-    st.markdown("""## Submit your processing request""")
+        st.markdown(instructions)
+        # st.warning("Please first run on a subset of PDF's to fine-tune functionality. Repeatedly running on many PDF's causes avoidable AI-borne GHG emissions.", icon="⚠️")
+
 
 def upload_file(temp_dir):
     st.subheader("I. Upload Policy Document(s)")
@@ -201,13 +203,28 @@ def populate_with_just_transition():
     just_transition_df = var_json_to_df("just_trans_var_specs.json")
     st.session_state["variables_df"] = just_transition_df
 
-
 def clear_variables():
     empty_df = pd.DataFrame(
         [{"variable_name": None, "variable_description": None, "context": None}]
     )
     st.session_state["variables_df"] = empty_df
 
+def update_var_spec_df_from_csv():
+    csv_file = st.session_state["csv_upload"]
+    if csv_file is None:
+        return  # Don't do anything if no file is uploaded
+    try:
+        df = pd.read_csv(csv_file)
+        if list(df.columns) != ["variable_name", "variable_description"] and list(df.columns) != ["variable_name", "variable_description", "context"]:
+            df = pd.read_csv(csv_file, header=None)
+            if df.shape[1] == 2:
+                df.columns = ["variable_name", "variable_description"]
+                df["context"] = None  # Add a context column with None values
+            elif df.shape[1] == 3:
+                df.columns = ["variable_name", "variable_description", "context"]
+        st.session_state["variables_df"] = df
+    except Exception as e:
+        st.error(f"Error reading CSV: {e}")
 
 def input_data_specs():
     st.markdown("")
@@ -220,7 +237,7 @@ def input_data_specs():
     )
     st.markdown(hdr)
     st.markdown(
-        "**Type-in variable details or copy-and-paste from an excel spreadsheet (3 columns, no headers).**"
+        "**Type-in variable details, upload a csv, or copy-and-paste from an excel spreadsheet (3 columns, no headers).**"
     )
     if "variables_df" not in st.session_state:
         st.session_state["variables_df"] = var_json_to_df("default_var_specs.json")
@@ -237,17 +254,21 @@ def input_data_specs():
         hide_index=True,
         column_order=variable_specification_parameters,
     )
-    btn1, btn2, btn3 = st.columns([1, 1, 1])
+    btn1, btn2, _, btn4 = st.columns([5, 5, 2, 3])
     with btn1:
         st.button("Clear", on_click=clear_variables)
     with btn2:
-        st.button("Populate with SDGs", on_click=populate_with_SDGs)
-    with btn3:
-        st.button(
-            "Use Just-Transition Themes",
-            on_click=populate_with_just_transition,
-            use_container_width=True,
-        )
+        with st.popover("Populate with..."):
+            st.button("SDGs", on_click=populate_with_SDGs)
+            st.button("Just-Transition Themes", on_click=populate_with_just_transition)
+    with btn4:
+        with st.popover("📤 Upload CSV"):
+            st.file_uploader(
+                "Choose a CSV file (headers optional, 2 or 3 columns):",
+                type=["csv"],
+                key="csv_upload",
+                on_change=update_var_spec_df_from_csv
+            )
     with st.expander("Advanced settings"):
         st.selectbox(
             "Optional: specify the overall operation type",
@@ -342,13 +363,22 @@ def is_valid_email(email):
     validated = re.match(email_regex, email) is not None
     return validated
 
-def input_email():
-    st.markdown(
-        "For variables with short descriptions, processing time will be about 1 minute per 100 PDF pages per variable."
+def select_gpt_model():
+    if "gpt_model" not in st.session_state:
+        st.session_state["gpt_model"] = "o4-mini"  # Default model
+    model_options = {
+        "o4-mini": "o4-mini", 
+        "o3": "o3 (slower, smarter, more expensive)",
+        "gpt-4.1": "4.1",
+    }  
+    st.session_state["gpt_model"] = st.selectbox(
+        "Select the OpenAI model to use for processing:",
+        options=list(model_options.keys()),
+        format_func=lambda x: model_options[x],
     )
 
-    email = st.text_input("Enter your email where you'd like to receive the results:")
-
+def input_email():
+    email = st.text_input("Enter your email where'd like to receive the results:")
     if "email" not in st.session_state:
         st.session_state["email"] = None  # Set to None if email is empty, for warning to user
     if not is_valid_email(email):
@@ -363,7 +393,8 @@ def build_interface(tmp_dir):
         st.session_state["task_type"] = "Quote extraction"
     if "is_test_run" not in st.session_state:
         st.session_state["is_test_run"] = True
-    load_text()
+    load_instructions()
+    st.markdown("""## Submit your processing request""")
     upload_file(tmp_dir)
     input_main_query()
     if "output_format_options" not in st.session_state:
@@ -387,6 +418,10 @@ def build_interface(tmp_dir):
         st.session_state["output_detail_df"] = None
     input_data_specs()
     st.divider()
+    st.markdown(
+        "For variables with short descriptions, processing time will be about 1 minute per 100 PDF pages per variable (with default model selection)."
+    )
+    select_gpt_model()
     input_email()
 
 
@@ -439,8 +474,9 @@ def get_user_inputs():
             "custom_output_fmt": st.session_state["custom_output_fmt"],
             "output_detail": st.session_state["output_detail_df"],
         }
+    gpt_model = st.session_state["gpt_model"]
     return get_analyzer(
-        task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info
+        task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info, gpt_model
     )
 
 

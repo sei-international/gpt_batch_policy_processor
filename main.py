@@ -67,6 +67,7 @@ def extract_policy_doc_info(
     var_embeddings,
     num_excerpts,
     openai_apikey,
+    gpt_model
 ):
     """
     Extracts policy document information by querying GPT for each variable specified.
@@ -86,7 +87,8 @@ def extract_policy_doc_info(
     """
     policy_doc_data = {}
     text_chunks = input_text_chunks
-    client, gpt_model, max_num_chars = new_openai_session(openai_apikey)
+    client, max_num_chars = new_openai_session(openai_apikey)
+    gpt_model = gpt_analyzer.get_gpt_model()
     # If the text is short, we don't need to generate embeddings to find "relevant texts"
     # If the text is long, text_chunks (defined above) will be replaced with the top relevant texts
     run_on_full_text = char_count < (max_num_chars - 1000)
@@ -197,6 +199,7 @@ def main(gpt_analyzer, openai_apikey):
     total_num_pages = 0
     total_start_time = time.time()
     failed_pdfs = []
+    gpt_model = gpt_analyzer.get_gpt_model()
     for pdf in gpt_analyzer.pdfs:
         pdf_path = get_resource_path(f"{pdf.replace('.pdf','')}.pdf")
         try:
@@ -211,9 +214,7 @@ def main(gpt_analyzer, openai_apikey):
             num_pages_in_pdf = 0
             num_sections = len(text_sections)
             ## Most PDFs will only have 1 text_section: this is used to break up long documents (>250 pages)
-            print(2)
             for text_section in text_sections:
-                print(3)
                 text_chunks, num_pages, char_count, section = [
                     text_section[k]
                     for k in ["text_chunks", "num_pages", "num_chars", "section_num"]
@@ -224,19 +225,17 @@ def main(gpt_analyzer, openai_apikey):
                     output_pdf_path = f"{pdf_path}"
                 num_pages_in_pdf += num_pages
                 total_num_pages += num_pages
-                openai_client, _, _ = new_openai_session(openai_apikey)
+                openai_client, _ = new_openai_session(openai_apikey)
                 pdf_embeddings, pdf_text_chunks = generate_all_embeddings(
                     openai_client, output_pdf_path, text_chunks, get_resource_path
                 )
-                print(4)
                 # 2) Prepare embeddings to grab most relevant text excerpts for each variable
-                openai_client, _, _ = new_openai_session(openai_apikey)
+                openai_client, _ = new_openai_session(openai_apikey)
                 var_embeddings = embed_variable_specifications(
                     openai_client, gpt_analyzer.variable_specs
                 )  # i.e. {"var_name": {"embedding": <...>", "variable_description": <...>, "context": <...>},  ...}
 
                 # 3) Iterate through each variable specification to grab relevant texts and query
-                print(5)
                 num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
                 policy_info = extract_policy_doc_info(
                     gpt_analyzer,
@@ -246,8 +245,8 @@ def main(gpt_analyzer, openai_apikey):
                     var_embeddings,
                     num_excerpts,
                     openai_apikey,
+                    gpt_model
                 )
-                print(6)
                 # 4) Output Results
                 output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
             print_milestone(

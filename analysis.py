@@ -13,7 +13,7 @@ class GPTAnalyzer:
     """
 
     def __init__(
-        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info
+        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
     ):
         """
         Initializes the GPTAnalyzer with the given parameters.
@@ -24,6 +24,7 @@ class GPTAnalyzer:
         self.email = email
         self.output_fmt = output_fmt
         self.additional_info = additional_info
+        self.gpt_model = gpt_model
 
     def __str__(self):
         """
@@ -91,6 +92,12 @@ class GPTAnalyzer:
         Returns the response format type.
         """
         return "json_object"
+    
+    def get_gpt_model(self):
+        """
+        Returns the gpt model selected by the user (or default is "o4-mini").
+        """
+        return self.gpt_model
 
 
 class DefaultAnalyzer(GPTAnalyzer):
@@ -99,13 +106,13 @@ class DefaultAnalyzer(GPTAnalyzer):
     """
 
     def __init__(
-        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info
+        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
     ):
         """
         Initializes the DefaultAnalyzer with the given parameters.
         """
         super().__init__(
-            pdfs, main_query, variable_specs, email, output_fmt, additional_info
+            pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
         )
 
     def output_fmt_prompt(self, var_name):
@@ -128,13 +135,13 @@ class CustomOutputAnalyzer(GPTAnalyzer):
     """
 
     def __init__(
-        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info
+        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
     ):
         """
         Initializes the CustomOutputAnalyzer with the given parameters.
         """
         super().__init__(
-            pdfs, main_query, variable_specs, email, output_fmt, additional_info
+            pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
         )
 
     def output_fmt_prompt(self, var_name):
@@ -168,13 +175,13 @@ class QuoteAnalyzer(GPTAnalyzer):
     """
 
     def __init__(
-        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info
+        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
     ):
         """
         Initializes the QuoteAnalyzer with the given parameters.
         """
         super().__init__(
-            pdfs, main_query, variable_specs, email, output_fmt, additional_info
+            pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
         )
 
     def output_fmt_prompt(self, var_name):
@@ -335,13 +342,13 @@ class SummaryAnalyzer(GPTAnalyzer):
     """
 
     def __init__(
-        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info
+        self, pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
     ):
         """
         Initializes the SummaryAnalyzer with the given parameters.
         """
         super().__init__(
-            pdfs, main_query, variable_specs, email, output_fmt, additional_info
+            pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
         )
 
     def output_fmt_prompt(self, var_name):
@@ -403,12 +410,12 @@ def get_task_types():
 
 
 def get_analyzer(
-    task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info
+    task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info, gpt_model="o4-mini"
 ):
     """
     Returns an instance of the appropriate analyzer class based on the task type.
     """
     task_analyzer_class = get_task_types()[task_type]
     return task_analyzer_class(
-        pdfs, main_query, variable_specs, email, output_fmt, additional_info
+        pdfs, main_query, variable_specs, email, output_fmt, additional_info, gpt_model
     )

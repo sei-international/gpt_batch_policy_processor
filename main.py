@@ -50,7 +50,7 @@ import requests
 import streamlit as st
 import time
 import traceback
-
+import pandas as pd
 
 def get_resource_path(relative_path):
     """
@@ -277,11 +277,18 @@ def main(gpt_analyzer, openai_apikey):
         # Excel path & write
         output_fname = get_output_fname(get_resource_path, filetype="xlsx")
         is_custom = st.session_state.get("task_type") == "Custom output format"
+        col_defs = (
+            st.session_state.get("excel_col_defs", pd.DataFrame())
+            .to_dict("records")
+            if is_custom
+            else []
+        )
         output_results_excel_policy(
-            excel_rows,
-            gpt_analyzer.variable_specs,
-            output_fname,
-            custom=is_custom
+            rows=excel_rows,
+            variable_specs=gpt_analyzer.variable_specs,
+            col_defs=col_defs,
+            output_path=output_fname,
+            custom=is_custom,
         )
         email_results(output_fname, gpt_analyzer.email)
         display_output(output_fname)

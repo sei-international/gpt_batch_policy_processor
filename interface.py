@@ -387,8 +387,6 @@ def build_interface(tmp_dir):
     if "output_detail_df" not in st.session_state:
         st.session_state["output_detail_df"] = None
     input_data_specs()
-    st.divider()
-    input_email()
     if "output_file_type" not in st.session_state:
         st.session_state["output_file_type"] = "Word (.docx)"
     st.subheader("IV. Choose output format")
@@ -397,6 +395,56 @@ def build_interface(tmp_dir):
         ("Word (.docx)", "Excel (.xlsx)"),
         key="output_file_type",
     )
+    if (
+        st.session_state["task_type"] == "Custom output format"
+        and st.session_state["output_file_type"].startswith("Excel")
+    ):
+        st.markdown(
+            """
+        Design your Excel output sheet. You can add as many rows as you like.  
+        - **column_name**: the header you want in Excel.  
+        - **value_expr**: a Python format string, e.g. `{var_name}`, `{Answer}`, `{Justification}`, `{Document}`, `{context}`, `{variable_description}`.
+        """
+        )
+        if "excel_col_defs" not in st.session_state:
+            st.session_state["excel_col_defs"] = pd.DataFrame(
+                [
+                    {"column_name": "criteria",      "value_expr": "{var_name}"},
+                    {"column_name": "Guiding Question",     "value_expr": "{Guiding Question}"},
+                    {"column_name": "Answer",        "value_expr": "{Answer}"},
+                    {"column_name": "justification", "value_expr": "{Justification}"},
+                ]
+            )
+        defs_df = st.data_editor(
+            st.session_state["excel_col_defs"],
+            hide_index=True,
+            use_container_width=True,
+            num_rows="dynamic",
+        )
+        st.session_state["excel_col_defs"] = defs_df
+        st.subheader("V. How should we split responses into rows?")
+        st.markdown(
+            """
+        **Auto (Markdown table)**  
+        If your GPT response is a markdown table (`| Q | A | J |`), we’ll split by table rows.
+
+        **Numbered list**  
+        If your response is a numbered list (“1. …”, “2. …”), we’ll split at each number.
+
+        **Single row**  
+        Keep everything together in one Excel row per variable.
+        """
+        )
+        if "row_split_method" not in st.session_state:
+            st.session_state["row_split_method"] = "Auto (Markdown table)"
+
+        st.session_state["row_split_method"] = st.radio(
+            "Row splitting method",
+            ["Auto (Markdown table)", "Numbered list", "Single row"],
+        )
+    st.divider()
+    input_email()
+    
 
 
 

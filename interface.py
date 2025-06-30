@@ -16,7 +16,9 @@ import os
 import pandas as pd
 import streamlit as st
 import zipfile
-
+import logging
+import streamlit as st
+from log_config import logger
 
 def load_header():
     logo_path = os.path.join(os.path.dirname(__file__), "public", "logo.png")

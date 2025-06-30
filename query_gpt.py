@@ -1,7 +1,6 @@
 from openai import OpenAI
 import os
-
-
+from log_config import logger
 def new_openai_session(openai_apikey):
     os.environ["OPENAI_API_KEY"] = openai_apikey
     client = OpenAI()
@@ -26,6 +25,7 @@ def create_gpt_messages(query, run_on_full_text):
 
 def chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs):
     print(gpt_model)
+    logger.info(gpt_model)
     if gpt_model == "gpt-4.1":
         response = gpt_client.chat.completions.create(
             model=gpt_model,

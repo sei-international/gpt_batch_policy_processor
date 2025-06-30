@@ -33,6 +33,8 @@ from interface import (
     get_user_inputs,
     load_header,
 )
+import streamlit as st
+from log_config import logger, init_logger
 from query_gpt import new_openai_session, query_gpt_for_variable_specification
 from read_pdf import extract_text_chunks_from_pdf
 from relevant_excerpts import (
@@ -50,7 +52,6 @@ import requests
 import streamlit as st
 import time
 import traceback
-
 
 def get_resource_path(relative_path):
     """
@@ -135,6 +136,7 @@ def print_milestone(milestone_desc, last_milestone_time, extras={}, mins=True):
     elapsed = time.time() - last_milestone_time
     elapsed = elapsed / 60.0 if mins else elapsed
     print(f"{milestone_desc}: {elapsed:.2f} {unit}")
+    logger.info(f"{milestone_desc}: {elapsed:.2f} {unit}")
     for extra in extras:
         print(f"{extra}: {extras[extra]}")
 
@@ -158,6 +160,7 @@ def fetch_gist_content(gist_url, headers, log_fname):
         return gist_data["files"][log_fname]["content"]
     else:
         print("Failed to fetch gist content.")
+        logger.info("Failed to fetch gist content.")
         return None
 
 
@@ -210,6 +213,7 @@ def main(gpt_analyzer, openai_apikey):
             if "error" in text_sections[0]:
                 failed_pdfs.append(pdf)
                 print(f"Failed: {pdf} with {text_sections[0]['error']}")
+                logger.info(f"Failed: {pdf} with {text_sections[0]['error']}")
                 continue
             num_pages_in_pdf = 0
             num_sections = len(text_sections)
@@ -254,7 +258,7 @@ def main(gpt_analyzer, openai_apikey):
             )
         except Exception as e:
             print(e)
-            log(f"Error for {pdf}: {e}")
+            logger.info(f"Error for {pdf}: {e}")
             log(traceback.format_exc())
 
     output_metrics(
@@ -278,6 +282,9 @@ if __name__ == "__main__":
             st.set_page_config(
                 layout="wide", page_title="AI Policy Reader", page_icon=logo_path
             )
+            log_placeholder = st.sidebar.empty()
+            init_logger(log_placeholder)
+            logger.info("🚀 App starting…")
             load_header()
             _, centered_div, _ = st.columns([1, 3, 1])
             with centered_div:

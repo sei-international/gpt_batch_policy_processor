@@ -17,6 +17,7 @@ from docx.shared import Pt
 import os
 import pandas as pd
 import re
+import streamlit as st
 
 
 # Function to generate the output file name based on the provided path function and file type
@@ -133,9 +134,7 @@ def output_metrics(doc, num_docs, t, num_pages, failed_pdfs):
     )
     if len(failed_pdfs) > 0:
         doc.add_heading(f"Unable to process the following PDFs: {failed_pdfs}", 4)
-import streamlit as st
-import pandas as pd
-import re
+
 # Function to display results as an excel sheet instead of word. Triggered from main when a user selects the Excel radio button.
 # col_defs: User specified (or default) columns passed to defined excel columns
 # custom: If a custom output format is selected from advanced settings, custom is True, and the columns are defined differently

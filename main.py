@@ -282,9 +282,6 @@ if __name__ == "__main__":
             st.set_page_config(
                 layout="wide", page_title="AI Policy Reader", page_icon=logo_path
             )
-            log_placeholder = st.sidebar.empty()
-            init_logger(log_placeholder)
-            logger.info("🚀 App starting…")
             load_header()
             _, centered_div, _ = st.columns([1, 3, 1])
             with centered_div:
@@ -308,6 +305,13 @@ if __name__ == "__main__":
                     about_tab()
                 with tab3:
                     FAQ()
+            st.markdown("---")
+            st.markdown("#### Live Log")
+            log_placeholder = st.empty()
+            if "logger_ready" not in st.session_state:
+                init_logger(log_placeholder)
+                logger.info("Logger ready")
+                st.session_state["logger_ready"] = True
     except Exception as e:
         log(
             f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id:{e}"

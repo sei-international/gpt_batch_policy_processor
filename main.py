@@ -53,6 +53,11 @@ import streamlit as st
 import time
 import traceback
 
+if "logger_initialized" not in st.session_state:
+    init_logger()
+    logger.info("You can track the progress of your request through the program's logs here.")
+    st.session_state["logger_initialized"] = True
+
 def get_resource_path(relative_path):
     """
     Returns the resource path for a given relative path.
@@ -300,20 +305,29 @@ if __name__ == "__main__":
                                 f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id; {num_pages} pages; {gpt_analyzer}"
                             )
                         st.success("Document generated!")
-                        os.unlink(st.session_state["temp_zip_path"])
+                        if "temp_zip_path" in st.session_state and not None:
+                            try:
+                                os.unlink(st.session_state["temp_zip_path"])
+                            except FileNotFoundError:
+                                pass  # maybe it was already deleted
+                            del st.session_state["temp_zip_path"]
                 with tab2:
                     about_tab()
                 with tab3:
                     FAQ()
-            st.markdown("---")
-            st.markdown("#### Live Log")
-            log_placeholder = st.empty()
-            if "logger_ready" not in st.session_state:
-                init_logger(log_placeholder)
-                logger.info("Logger ready")
-                st.session_state["logger_ready"] = True
+                st.markdown("---")
+                st.markdown("#### Live Log")
+                st.text_area(
+                    label="Console log",
+                    value="\n".join(st.session_state.get("live_log", [])),
+                    height=200,
+                    disabled=True,
+                    label_visibility="collapsed",
+                )
     except Exception as e:
         log(
             f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id:{e}"
         )
         log(traceback.format_exc())
+        logger.exception(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id:{e}")
+        logger.exception(traceback.format_exc())

@@ -42,8 +42,9 @@ from relevant_excerpts import (
 )
 from results import format_output_doc, get_output_fname, output_results, output_metrics
 
-from docx import Document
+from openpyxl import Workbook
 from tempfile import TemporaryDirectory
+import io
 import json
 import os
 import requests
@@ -194,7 +195,7 @@ def main(gpt_analyzer, openai_apikey):
     Returns:
         The total number of pages processed.
     """
-    output_doc = Document()
+    output_doc = Workbook()
     format_output_doc(output_doc, gpt_analyzer)
     total_num_pages = 0
     total_start_time = time.time()
@@ -264,10 +265,14 @@ def main(gpt_analyzer, openai_apikey):
         total_num_pages,
         failed_pdfs,
     )
-    output_fname = get_output_fname(get_resource_path)
-    output_doc.save(output_fname)
-    email_results(output_fname, gpt_analyzer.email)
-    display_output(output_fname)
+    buffer = io.BytesIO()
+    output_doc.save(buffer)
+    buffer.seek(0)
+    output_file_contents = buffer.read()
+    email_results(output_file_contents, gpt_analyzer.email)
+    buffer.seek(0)
+    output_file_contents = buffer.read()
+    display_output(output_file_contents)
     return total_num_pages
 
 
@@ -279,7 +284,7 @@ if __name__ == "__main__":
                 layout="wide", page_title="AI Policy Reader", page_icon=logo_path
             )
             load_header()
-            _, centered_div, _ = st.columns([1, 3, 1])
+            _, centered_div, _ = st.columns([1, 6, 1])
             with centered_div:
                 tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
                 with tab1:

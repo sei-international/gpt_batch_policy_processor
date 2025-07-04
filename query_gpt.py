@@ -25,7 +25,6 @@ def create_gpt_messages(query, run_on_full_text):
 
 
 def chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs):
-    print(gpt_model)
     if gpt_model == "gpt-4.1":
         response = gpt_client.chat.completions.create(
             model=gpt_model,
@@ -60,7 +59,7 @@ def query_gpt_for_variable_specification(
     relevant_texts,
     run_on_full_text,
     gpt_client,
-    gpt_model="o4-mini",
+    gpt_model="4.1",
 ):
     query_template = gpt_analyzer.main_query
     excerpts = "\n".join(relevant_texts)

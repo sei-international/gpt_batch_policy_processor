@@ -190,6 +190,12 @@ class QuoteAnalyzer(GPTAnalyzer):
         """
         if self.output_fmt == "quotes_gpt_resp":
             return "Provide an exhaustive list of relevant quotes."
+        elif self.output_fmt == "quotes_structured":
+            output_fmt_str = "Provide an exhaustive list of relevant quotes in the following json format: "
+            output_json_fmt = {
+                "list_of_quotes": [{"quote": "...", "page_number": "...", "justification": "..."}],
+            }
+            return output_fmt_str + str(output_json_fmt).replace("]}", ", ...]}")
         else:
             output_json_fmt = {
                 "list_of_quotes": [{"quote": "...", "page_number": "..."}]
@@ -198,7 +204,7 @@ class QuoteAnalyzer(GPTAnalyzer):
                 for col in self.additional_info.columns[1:]:
                     label = f"relevant_{col.lower().replace(' ', '_')}"
                     output_json_fmt["list_of_quotes"][0][label] = "..."
-            output_fmt_str = str(output_json_fmt).replace("]}", ", ...}]")
+            output_fmt_str = str(output_json_fmt).replace("]}", ", ...]}")
             return f"Return your response in the following json format: \n {output_fmt_str}"
 
     def optional_add_categorization(self, var_name, query):
@@ -241,15 +247,13 @@ class QuoteAnalyzer(GPTAnalyzer):
         elif self.output_fmt == "quotes_structured":
             all_quotes = {}
             for var_name, quotes_json in policy_info.items():
-                quotes_for_var = ""
-                ctr = 1
+                quotes_for_var, justifications = [], []
                 for quote_json in quotes_json:
-                    quotes_for_var += f"{str(ctr)}. {quote_json['quote']} [page {quote_json['page_number']}]. \n"
-                    ctr += 1
-                all_quotes[var_name] = {self.get_output_headers()[1]: quotes_for_var}
+                    quotes_for_var.append(f"{quote_json['quote']} [page {quote_json['page_number']}]")
+                    justifications.append(quote_json["justification"])
+                all_quotes[var_name] = {self.get_output_headers()[1]: quotes_for_var, self.get_output_headers()[2]: justifications}
             return all_quotes
         else:
-
             def is_similar_quote(q1, q2):
                 q1, q2 = q1.lower().strip(), q2.lower().strip()
                 return q1 in q2 or q2 in q1 or q1 == q2 or q1 is q2
@@ -307,6 +311,8 @@ class QuoteAnalyzer(GPTAnalyzer):
         """
         if self.output_fmt == "quotes_gpt_resp":
             return ["Variable", "Relevant Quotes"]
+        if self.output_fmt == "quotes_structured":
+            return ["Variable", "Relevant Quote", "Justification"]
         else:
             headers = ["Quote", "Relevant Variables"]
             if self.output_fmt == "quotes_sorted_and_labelled":
@@ -405,7 +411,7 @@ def get_task_types():
         "Quote extraction": QuoteAnalyzer,
         "Custom output format": CustomOutputAnalyzer,
         "Targeted summaries": SummaryAnalyzer,
-        "Targeted inquiries": DefaultAnalyzer,
+        #"Targeted inquiries": DefaultAnalyzer,
     }
 
 

@@ -16,6 +16,8 @@ from datetime import datetime
 from docx.shared import Pt
 import os
 import pandas as pd
+import re
+import streamlit as st
 
 
 # Function to generate the output file name based on the provided path function and file type
@@ -74,6 +76,7 @@ def format_output_doc(output_doc, gpt_analyzer):
         "The following query is run for each of the variable specifications listed below:"
     )
     query_paragraph = output_doc.add_paragraph()
+    print("main_query::", main_query)
     query_text = main_query.replace("Text: {excerpts}", "")
     query_run = query_paragraph.add_run(query_text)
     query_run.italic = True
@@ -131,3 +134,152 @@ def output_metrics(doc, num_docs, t, num_pages, failed_pdfs):
     )
     if len(failed_pdfs) > 0:
         doc.add_heading(f"Unable to process the following PDFs: {failed_pdfs}", 4)
+
+# Function to display results as an excel sheet instead of word. Triggered from main when a user selects the Excel radio button.
+# col_defs: User specified (or default) columns passed to defined excel columns
+# custom: If a custom output format is selected from advanced settings, custom is True, and the columns are defined differently
+# rows: list of dicts, each with "Document" plus var_name→resp (str or dict)
+# variable_specs: var_name→metadata dict
+def output_results_excel_policy(
+    rows: list[dict],
+    variable_specs: dict,
+    col_defs: list[dict],
+    output_path: str,
+    custom: bool = False
+):
+
+    def parse_markdown_table(raw: str):
+        """
+        Scan `raw` for the first markdown table and return
+        a list of dicts mapping header→cell_value for each row.
+        """
+        lines = [l.rstrip() for l in raw.splitlines() if l.strip()]
+        for i in range(len(lines)-1):
+            hdr_line = lines[i]
+            sep_line = lines[i+1]
+            # detect a header followed by a |-|-| line
+            if hdr_line.startswith("|") and sep_line.startswith("|") and set(sep_line.replace("|","").strip()) <= set(":-"):
+                headers = [h.strip() for h in hdr_line.strip("|").split("|")]
+                data = []
+                for row in lines[i+2:]:
+                    if not (row.startswith("|") and row.endswith("|")):
+                        break
+                    cells = [c.strip() for c in row.strip("|").split("|")]
+                    row_dict = {headers[j]: cells[j] if j < len(cells) else "" for j in range(len(headers))}
+                    data.append(row_dict)
+                return data
+        return []
+
+    # 1) read the UI choice
+    split_method = st.session_state.get("row_split_method", "Auto (Markdown table)")
+
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        for pdf_row in rows:
+            sheet = pdf_row.get("Document", "Results")[:31]
+            out_rows = []
+
+            for var_name, resp in pdf_row.items():
+                if var_name == "Document":
+                    continue
+
+                spec = variable_specs.get(var_name, {})
+                if not custom:
+                    # pull the raw answer text
+                    if isinstance(resp, dict):
+                        raw = resp.get("Answer", "")
+                    else:
+                        raw = str(resp)
+                    # strip wrapping quotes
+                    raw = raw.strip().strip('"').strip("'")
+
+                    # split on lines that begin with "1.", "2.", etc.
+                    parts = re.split(r'(?m)^\s*\d+\.\s*', raw)
+                    # parts[0] is anything before the first "1." — discard
+                    for chunk in parts[1:]:
+                        chunk = chunk.strip()
+                        if not chunk:
+                            continue
+                        out_rows.append({
+                            "Document":             sheet,
+                            "variable name":        var_name,
+                            "variable description": spec.get("variable_description", ""),
+                            "context":              spec.get("context", ""),
+                            "quote":                chunk,
+                        })
+                    # if we never saw any numbered parts, at least emit one row
+                    if len(parts) <= 1:
+                        out_rows.append({
+                            "Document":             sheet,
+                            "variable name":        var_name,
+                            "variable description": spec.get("variable_description", ""),
+                            "context":              spec.get("context", ""),
+                            "quote":                raw or "No relevant content found.",
+                        })
+
+                    # skip all other logic in this loop
+                    continue
+                # get raw text
+                if isinstance(resp, dict):
+                    raw = str(resp.get("Answer",""))
+                else:
+                    raw = str(resp)
+                raw = raw.strip().strip('"').strip("'")
+
+                # 2) split into chunks
+                if split_method == "Numbered list":
+                    parts = re.split(r'(?m)^\s*\d+\.\s*', raw)
+                    chunks = [p for p in parts if p.strip()]
+
+                elif split_method == "Auto (Markdown table)":
+                    print("raw", raw)
+                    md = parse_markdown_table(raw)
+                    if md:
+                        chunks = md
+                    else:
+                        chunks = [raw]
+
+                else:  # Single row
+                    chunks = [raw]
+
+                # 3) for each chunk, build a ctx and emit a row
+                for chunk in chunks:
+                    print("chunk", chunk)
+                    ctx = {
+                        "Document": sheet,
+                        "var_name": var_name,
+                        **spec
+                    }
+                    if isinstance(chunk, dict):
+                        ctx.update(chunk)
+                    else:
+                        ctx["response"] = chunk
+
+                    if not custom:
+                        # built-in 4-column default
+                        out_rows.append({
+                            "Document":             sheet,
+                            "variable name":        var_name,
+                            "variable description": spec.get("variable_description",""),
+                            "context":              spec.get("context",""),
+                            "quote":                chunk if isinstance(chunk,str) else str(chunk),
+                        })
+                    else:
+                        # user-driven columns
+                        row = {}
+                        for cd in col_defs:
+                            col = cd["column_name"]
+                            expr = cd["value_expr"]
+                            try:
+                                row[col] = expr.format(**ctx)
+                            except Exception:
+                                row[col] = ""
+                        out_rows.append(row)
+
+            # 4) write to Excel
+            if not custom:
+                cols = ["Document","variable name","variable description","context","quote"]
+            else:
+                cols = [cd["column_name"] for cd in col_defs]
+
+            pd.DataFrame(out_rows, columns=cols) \
+              .to_excel(writer, sheet_name=sheet, index=False)

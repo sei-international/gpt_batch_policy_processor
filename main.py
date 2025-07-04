@@ -40,7 +40,7 @@ from relevant_excerpts import (
     embed_variable_specifications,
     find_top_relevant_texts,
 )
-from results import format_output_doc, get_output_fname, output_results, output_metrics
+from results import format_output_doc, get_output_fname, output_results, output_metrics, output_results_excel_policy
 
 from docx import Document
 from tempfile import TemporaryDirectory
@@ -50,7 +50,7 @@ import requests
 import streamlit as st
 import time
 import traceback
-
+import pandas as pd
 
 def get_resource_path(relative_path):
     """
@@ -194,13 +194,21 @@ def main(gpt_analyzer, openai_apikey):
     Returns:
         The total number of pages processed.
     """
-    output_doc = Document()
-    format_output_doc(output_doc, gpt_analyzer)
+    # Are we emitting Excel instead of Word?
+    is_excel = st.session_state.get("output_file_type", "Word (.docx)").startswith("Excel")
+    if is_excel:
+        # collect one row/dict per PDF
+        excel_rows: list[dict] = []
+    else:
+        # existing Word setup
+        output_doc = Document()
+        format_output_doc(output_doc, gpt_analyzer)
     total_num_pages = 0
     total_start_time = time.time()
     failed_pdfs = []
     gpt_model = gpt_analyzer.get_gpt_model()
     for pdf in gpt_analyzer.pdfs:
+        print("pdf::", pdf)
         pdf_path = get_resource_path(f"{pdf.replace('.pdf','')}.pdf")
         try:
             country_start_time = time.time()
@@ -248,7 +256,14 @@ def main(gpt_analyzer, openai_apikey):
                     gpt_model
                 )
                 # 4) Output Results
-                output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
+                if is_excel:
+                    excel_rows.append({
+                        "Document": os.path.basename(output_pdf_path),
+                        **policy_info
+                    })
+                else:
+                    output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
+
             print_milestone(
                 "Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf}
             )
@@ -257,17 +272,39 @@ def main(gpt_analyzer, openai_apikey):
             log(f"Error for {pdf}: {e}")
             log(traceback.format_exc())
 
-    output_metrics(
-        output_doc,
-        len(gpt_analyzer.pdfs),
-        time.time() - total_start_time,
-        total_num_pages,
-        failed_pdfs,
-    )
-    output_fname = get_output_fname(get_resource_path)
-    output_doc.save(output_fname)
-    email_results(output_fname, gpt_analyzer.email)
-    display_output(output_fname)
+    if is_excel:
+        # Excel path & write
+        output_fname = get_output_fname(get_resource_path, filetype="xlsx")
+        is_custom = st.session_state.get("task_type") == "Custom output format"
+        col_defs = (
+            st.session_state.get("excel_col_defs", pd.DataFrame())
+            .to_dict("records")
+            if is_custom
+            else []
+        )
+        output_results_excel_policy(
+            rows=excel_rows,
+            variable_specs=gpt_analyzer.variable_specs,
+            col_defs=col_defs,
+            output_path=output_fname,
+            custom=is_custom,
+        )
+        email_results(output_fname, gpt_analyzer.email)
+        display_output(output_fname)
+    else:
+        # Word path & write
+        output_metrics(
+            output_doc,
+            len(gpt_analyzer.pdfs),
+            time.time() - total_start_time,
+            total_num_pages,
+            failed_pdfs,
+        )
+        output_fname = get_output_fname(get_resource_path)
+        output_doc.save(output_fname)
+        email_results(output_fname, gpt_analyzer.email)
+        display_output(output_fname)
+
     return total_num_pages
 
 

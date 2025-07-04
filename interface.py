@@ -365,11 +365,11 @@ def is_valid_email(email):
 
 def select_gpt_model():
     if "gpt_model" not in st.session_state:
-        st.session_state["gpt_model"] = "o4-mini"  # Default model
+        st.session_state["gpt_model"] = "4.1"  # Default model
     model_options = {
+        "gpt-4.1": "4.1",
         "o4-mini": "o4-mini", 
         "o3": "o3 (slower, smarter, more expensive)",
-        "gpt-4.1": "4.1",
     }  
     st.session_state["gpt_model"] = st.selectbox(
         "Select the OpenAI model to use for processing:",
@@ -399,10 +399,10 @@ def build_interface(tmp_dir):
     input_main_query()
     if "output_format_options" not in st.session_state:
         st.session_state["output_format_options"] = {
-            "Sort by quotes; each quote will be one row": "quotes_sorted",
-            "Simply return GPT responses for each variable": "quotes_gpt_resp",
-            "Sort by quotes labelled with variable_name and subcategories": "quotes_sorted_and_labelled",
             "Return list of quotes per variable": "quotes_structured",
+            "Return raw GPT responses for each variable": "quotes_gpt_resp",
+            "Sort by quotes; each quote will be one row": "quotes_sorted",
+            "Sort by quotes labelled with variable_name and subcategories": "quotes_sorted_and_labelled",
         }
     if "pdfs" not in st.session_state:
         st.session_state["pdfs"] = "no_upload"
@@ -425,30 +425,26 @@ def build_interface(tmp_dir):
     input_email()
 
 
-def email_results(docx_fname, recipient_email):
+def email_results(output_file_contents, recipient_email):
     message = Mail(
         from_email=st.secrets["email"],
         to_emails=recipient_email,
         subject="Results: GPT Batch Policy Processor (Beta)",
         html_content="Attached is the document you requested.",
     )
-    with open(docx_fname, "rb") as f:
-        file_data = f.read()
-        f.close()
-    encoded_file = base64.b64encode(file_data).decode()
-    attachedFile = Attachment(
-        FileContent(encoded_file),
-        FileName("results.docx"),
-        FileType("application/docx"),
+    encoded_output_file = base64.b64encode(output_file_contents).decode()
+    message.attachment = Attachment(
+        FileContent(encoded_output_file),
+        FileName("results.xlsx"),
+        FileType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         Disposition("attachment"),
     )
-    message.attachment = attachedFile
     try:
         sg = SendGridAPIClient(st.secrets["sendgrid_apikey"])
         response = sg.send(message)
-        print(response.status_code)
+        print("Email sent, status code:", response.status_code)
     except Exception as e:
-        print(e)
+        print("Error sending email:", e)
         print(e.message)
 
 
@@ -480,15 +476,13 @@ def get_user_inputs():
     )
 
 
-def display_output(docx_fname):
-    with open(docx_fname, "rb") as f:
-        binary_file = f.read()
-        st.download_button(
-            label="Download Results",
-            data=binary_file,
-            file_name="results.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
+def display_output(output_file_contents):
+    st.download_button(
+        label="Download Results",
+        data=output_file_contents,
+        file_name="results.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 def about_tab():

@@ -41,6 +41,7 @@ from relevant_excerpts import (
     find_top_relevant_texts,
 )
 from results import format_output_doc, get_output_fname, output_results, output_metrics
+from server_env import get_secret
 
 from openpyxl import Workbook
 from tempfile import TemporaryDirectory
@@ -169,7 +170,7 @@ def log(new_content):
     Args:
         new_content: The new content to log.
     """
-    github_token = st.secrets["github_token"]
+    github_token = get_secret("github_token")
     log_fname = "log"
     gist_base_url = "https://api.github.com/gists"
     gist_url = f"{gist_base_url}/47029f286297a129a654110ebe420f5f"
@@ -295,7 +296,7 @@ if __name__ == "__main__":
                             apikey_id = "openai_apikey"
                             if "apikey_id" in st.session_state:
                                 apikey_id = st.session_state["apikey_id"]
-                            openai_apikey = st.secrets[apikey_id]
+                            openai_apikey = get_secret(apikey_id)
                             num_pages = main(gpt_analyzer, openai_apikey)
                             log(
                                 f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id; {num_pages} pages; {gpt_analyzer}"

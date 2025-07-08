@@ -33,7 +33,13 @@ def add_row(row_key, output_headers, row_dict, ws, i=None):
         if col_nm in row_dict:                   
             cell = row_dict[col_nm]
             if i!= None: 
-                cell = row_dict[col_nm][i]
+                if not isinstance(row_dict[col_nm], list):
+                    if i == 0:
+                        cell = row_dict[col_nm]
+                    else:
+                        cell = ""
+                else:
+                    cell = row_dict[col_nm][i]
             row.append(cell)
     ws.append(row)
 

@@ -1,4 +1,6 @@
 from analysis import get_analyzer, get_task_types
+from formatter import get_formatter_type_with_labels
+from server_env import get_apikey_ids, get_secret
 import re
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (
@@ -135,12 +137,7 @@ def upload_file(temp_dir):
             if len(pdfs) > 1: # If not checked to run on subset and there is more than 1 PDF
                 passcode = st.text_input("Enter passcode", type="password")
                 if passcode:
-                    apikey_ids = {
-                        st.secrets["access_password"]: "openai_apikey",
-                        st.secrets["access_password_adis"]: "openai_apikey_adis",
-                        st.secrets["access_password_urbanadaptation"]: "openai_apikey_adaptation",
-                        st.secrets["access_password_bb"]: "openai_apikey_bb",
-                    }
+                    apikey_ids = get_apikey_ids()
                     if passcode in apikey_ids:
                         st.session_state["apikey_id"] = apikey_ids[passcode]
                         st.session_state["is_test_run"] = False
@@ -322,22 +319,82 @@ def input_data_specs():
                     st.warning(
                         "Please enter at least one subcategorization label or choose a different output format."
                     )
-        elif st.session_state["task_type"] == "Custom output format":
-            st.session_state["custom_output_fmt"] = st.text_area(
-                "Enter your custom output instructions", height=100
-            )
-            st.markdown(
-                "Optional: include specific output instructions for each variable using {output_detail} above"
-            )
-            init_output_detail_df = pd.DataFrame(
-                {"variable_name": var_names, "output_detail": [None] * len(var_names)}
-            )
-            st.session_state["output_detail_df"] = st.data_editor(
-                init_output_detail_df,
-                hide_index=True,
-                disabled=["variable_name"],
-                use_container_width=True,
-            )
+            elif output_fmt_selected == "custom_output_fmt":
+                st.session_state["custom_output_fmt_instructions"] = st.text_area(
+                    "Enter your custom output instructions. 'Variable name' (from the table above) will automatically be included. Don't mention it here.", height=100
+                )
+                if 'custom_output_columns' not in st.session_state:
+                    # Create the initial DataFrame with 2 columns and 1 data row
+                    initial_data = {
+                        "Output Column 1": ["Variable name"],
+                        "Output Column 2": ["Response"],
+                    }
+                    st.session_state["custom_output_columns"] = pd.DataFrame(initial_data)
+                st.text("Enter the custom column names described in the text area above.")
+                custom_output_col_table_div = st.container()              
+                col1, col2 = st.columns(2)
+                with col1:
+                    with st.form("add_output_column_form"):
+                        new_column_name = st.text_input("Enter new column name")
+                        submitted = st.form_submit_button("➕ Add Column")
+                    if submitted:
+                        if new_column_name and new_column_name not in st.session_state["custom_output_columns"].iloc[0].tolist():
+                            id_col = len(st.session_state["custom_output_columns"].keys()) + 1
+                            f"Output Column {id_col}"
+                            st.session_state["custom_output_columns"][f"Output Column {id_col}"] = new_column_name
+                        elif not new_column_name:
+                            st.warning("Please enter a name for the new column.")
+                        else:
+                            st.warning(f"Column '{new_column_name}' already exists.")
+                with col2:
+                    with st.form("remove_column_form"):
+                        disable_remove = len(st.session_state["custom_output_columns"].columns) <= 2
+                        columns_to_remove = st.selectbox(
+                            "Select columns to remove",
+                            options=[""] + st.session_state["custom_output_columns"].columns[1:],
+                            help="You cannot remove columns if only two remain.",
+                            disabled=disable_remove
+                        )
+                        submitted = st.form_submit_button(
+                            "➖ Remove Column",
+                            disabled=disable_remove,
+                        )
+                        if submitted:
+                            if not columns_to_remove:
+                                st.warning("Please select one or more columns to remove.")
+                            else:
+                                st.session_state["custom_output_columns"] = st.session_state["custom_output_columns"].drop(columns=columns_to_remove)
+                                edited_df = st.session_state["custom_output_columns"]
+                                new_df = {}
+                                for i, col_name in enumerate(edited_df):
+                                    new_df[f"Column Name {i+1}"] = edited_df[col_name]
+                                edited_df = pd.DataFrame(new_df)
+                                st.session_state["custom_output_columns"] = edited_df
+                with custom_output_col_table_div:
+                    edited_df = st.data_editor(
+                        st.session_state["custom_output_columns"],
+                        hide_index=True,
+                        disabled=["Output Column 1"],
+                        use_container_width=True
+                    )  
+                    st.session_state["custom_output_columns"] = edited_df  
+                if not edited_df.equals(st.session_state["custom_output_columns"]):
+                    st.session_state["custom_output_columns"] = edited_df
+                    st.toast("Changes saved!")
+                """
+                st.markdown(
+                    "Optional: include specific output instructions for each variable using {output_detail} above"
+                )
+                init_output_detail_df = pd.DataFrame(
+                    {"variable_name": var_names, "output_detail": [None] * len(var_names)}
+                )
+                st.session_state["output_detail_df"] = st.data_editor(
+                    init_output_detail_df,
+                    hide_index=True,
+                    disabled=["variable_name"],
+                    use_container_width=True,
+                )
+                """
 
 
 def process_table():
@@ -398,12 +455,7 @@ def build_interface(tmp_dir):
     upload_file(tmp_dir)
     input_main_query()
     if "output_format_options" not in st.session_state:
-        st.session_state["output_format_options"] = {
-            "Return list of quotes per variable": "quotes_structured",
-            "Return raw GPT responses for each variable": "quotes_gpt_resp",
-            "Sort by quotes; each quote will be one row": "quotes_sorted",
-            "Sort by quotes labelled with variable_name and subcategories": "quotes_sorted_and_labelled",
-        }
+        st.session_state["output_format_options"] = get_formatter_type_with_labels(st.session_state["task_type"])
     if "pdfs" not in st.session_state:
         st.session_state["pdfs"] = "no_upload"
     if "schema_input_format" not in st.session_state:
@@ -412,8 +464,8 @@ def build_interface(tmp_dir):
         st.session_state["output_format"] = list(
             st.session_state["output_format_options"].keys()
         )[1]
-    if "custom_output_fmt" not in st.session_state:
-        st.session_state["custom_output_fmt"] = None
+    if "custom_output_fmt_instructions" not in st.session_state:
+        st.session_state["custom_output_fmt_instructions"] = None
     if "output_detail_df" not in st.session_state:
         st.session_state["output_detail_df"] = None
     input_data_specs()
@@ -427,7 +479,7 @@ def build_interface(tmp_dir):
 
 def email_results(output_file_contents, recipient_email):
     message = Mail(
-        from_email=st.secrets["email"],
+        from_email=get_secret("email"),
         to_emails=recipient_email,
         subject="Results: GPT Batch Policy Processor (Beta)",
         html_content="Attached is the document you requested.",
@@ -440,7 +492,7 @@ def email_results(output_file_contents, recipient_email):
         Disposition("attachment"),
     )
     try:
-        sg = SendGridAPIClient(st.secrets["sendgrid_apikey"])
+        sg = SendGridAPIClient(get_secret("sendgrid_apikey"))
         response = sg.send(message)
         print("Email sent, status code:", response.status_code)
     except Exception as e:
@@ -463,11 +515,13 @@ def get_user_inputs():
         st.session_state["output_format"]
     ]
     additional_info = None
+    print(output_fmt)
     if task_type == "Quote extraction" and output_fmt == "quotes_sorted_and_labelled":
         additional_info = st.session_state["subcategories_df"]
-    elif task_type == "Custom output format":
+    elif output_fmt == "custom_output_fmt":
         additional_info = {
-            "custom_output_fmt": st.session_state["custom_output_fmt"],
+            "custom_output_fmt_instructions": st.session_state["custom_output_fmt_instructions"],
+            "custom_output_columns": st.session_state["custom_output_columns"].iloc[0].tolist(),
             "output_detail": st.session_state["output_detail_df"],
         }
     gpt_model = st.session_state["gpt_model"]

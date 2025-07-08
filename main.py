@@ -41,9 +41,11 @@ from relevant_excerpts import (
     find_top_relevant_texts,
 )
 from results import format_output_doc, get_output_fname, output_results, output_metrics
+from server_env import get_secret
 
-from docx import Document
+from openpyxl import Workbook
 from tempfile import TemporaryDirectory
+import io
 import json
 import os
 import requests
@@ -168,7 +170,7 @@ def log(new_content):
     Args:
         new_content: The new content to log.
     """
-    github_token = st.secrets["github_token"]
+    github_token = get_secret("github_token")
     log_fname = "log"
     gist_base_url = "https://api.github.com/gists"
     gist_url = f"{gist_base_url}/47029f286297a129a654110ebe420f5f"
@@ -194,7 +196,7 @@ def main(gpt_analyzer, openai_apikey):
     Returns:
         The total number of pages processed.
     """
-    output_doc = Document()
+    output_doc = Workbook()
     format_output_doc(output_doc, gpt_analyzer)
     total_num_pages = 0
     total_start_time = time.time()
@@ -264,10 +266,14 @@ def main(gpt_analyzer, openai_apikey):
         total_num_pages,
         failed_pdfs,
     )
-    output_fname = get_output_fname(get_resource_path)
-    output_doc.save(output_fname)
-    email_results(output_fname, gpt_analyzer.email)
-    display_output(output_fname)
+    buffer = io.BytesIO()
+    output_doc.save(buffer)
+    buffer.seek(0)
+    output_file_contents = buffer.read()
+    email_results(output_file_contents, gpt_analyzer.email)
+    buffer.seek(0)
+    output_file_contents = buffer.read()
+    display_output(output_file_contents)
     return total_num_pages
 
 
@@ -279,7 +285,7 @@ if __name__ == "__main__":
                 layout="wide", page_title="AI Policy Reader", page_icon=logo_path
             )
             load_header()
-            _, centered_div, _ = st.columns([1, 3, 1])
+            _, centered_div, _ = st.columns([1, 6, 1])
             with centered_div:
                 tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
                 with tab1:
@@ -290,7 +296,7 @@ if __name__ == "__main__":
                             apikey_id = "openai_apikey"
                             if "apikey_id" in st.session_state:
                                 apikey_id = st.session_state["apikey_id"]
-                            openai_apikey = st.secrets[apikey_id]
+                            openai_apikey = get_secret(apikey_id)
                             num_pages = main(gpt_analyzer, openai_apikey)
                             log(
                                 f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id; {num_pages} pages; {gpt_analyzer}"

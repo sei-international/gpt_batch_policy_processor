@@ -1,9 +1,12 @@
 black
 numpy
 openai
+openpyxl
+pandas
 pdfplumber
 pymupdf
 python-docx
+requests
 ruff
 sendgrid
 streamlit

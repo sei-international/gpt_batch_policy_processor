@@ -67,10 +67,8 @@ class CustomFormatter(OutputFormatter):
         return f"Return a json object formatted as {output_json_fmt_str} according to the following instructions: \n {self.additional_info['custom_output_fmt_instructions']} \n"
         #.replace("{output_detail}", output_detail)
     def get_results(self, policy_info):
-        print("get results", policy_info)
         return policy_info
     def format_gpt_response(self, resp):
-        print("format gpt response", resp)
         return json.loads(resp)
     def resp_format_type(self):
         return "json_object"

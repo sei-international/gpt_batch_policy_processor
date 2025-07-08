@@ -12,7 +12,7 @@ def get_apikey_ids():
     }
 
 def get_secret(k):
-    if os.environ.get("WEBSITE_SITE_NAME") or os.environ.get("WEBSITE_INSTANCE_ID"):
+    if os.environ.get("WEBSITE_SITE_NAME") or os.environ.get("WEBSITE_INSTANCE_ID") or os.environ.get("WEBSITE_DEFAULT_HOSTNAME"):
         return os.environ.get(k)
     elif os.environ.get("STREAMLIT_SERVER_HEADLESS") or os.environ.get("STREAMLIT_CLOUD"):
         return st.secrets[k]

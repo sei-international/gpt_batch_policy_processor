@@ -11,4 +11,3 @@ ruff
 sendgrid
 streamlit
 tiktoken
-openpyxl

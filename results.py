@@ -16,13 +16,22 @@ def format_output_doc(output_doc, gpt_analyzer):
         ws1.append(["Main query template:"])
         ws1.append([main_query])
         ws2 = output_doc.create_sheet(title="Variables")
-        headers = ["variable_name", "variable_description", "context"]
+        headers = ["variable_name"] 
+        init_row = variable_specs[list(variable_specs.keys())[0]]
+        for col in init_row.keys():
+            if col == "variable_group":
+                headers = ["variable_group"] + headers
+            else:
+                headers.append(col)
         ws2.append(headers)   
         for var_name, var_spec in variable_specs.items():
             row = [var_name]
             for header in [h for h in headers if h != "variable_name"]:
                 if header in var_spec:
-                    row.append(var_spec[header])
+                    if header == "variable_group":
+                        row =  [var_spec[header]] + row
+                    else:
+                        row.append(var_spec[header])
             ws2.append(row)
     except Exception as e:
         print(f"Error (format_output_doc()): {e}")
@@ -40,6 +49,8 @@ def add_row(row_key, output_headers, row_dict, ws, i=None):
                         cell = ""
                 else:
                     cell = row_dict[col_nm][i]
+            if isinstance(cell, list):
+                cell = f"[{', '.join(cell)}]" 
             row.append(cell)
     ws.append(row)
 

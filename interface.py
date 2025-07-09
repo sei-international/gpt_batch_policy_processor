@@ -19,9 +19,11 @@ import pandas as pd
 import streamlit as st
 import zipfile
 
+def get_site_content_path(fname, type="jsons"):
+    return os.path.join(os.path.dirname(__file__), f"site_content/{type}", fname)
 
 def load_header():
-    logo_path = os.path.join(os.path.dirname(__file__), "public", "logo.png")
+    logo_path = get_site_content_path("logo.png", "imgs")
     with open(logo_path, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode()
 
@@ -185,7 +187,7 @@ def input_main_query():
 
 
 def var_json_to_df(json_fname):
-    var_info_path = os.path.join(os.path.dirname(__file__), "site_text", json_fname)
+    var_info_path = os.path.join(os.path.dirname(__file__), "site_content/jsons", json_fname)
     with open(var_info_path, "r", encoding="utf-8") as file:
         sdg_var_specs = json.load(file)
         return pd.DataFrame(sdg_var_specs)
@@ -201,27 +203,45 @@ def populate_with_just_transition():
     st.session_state["variables_df"] = just_transition_df
 
 def clear_variables():
-    empty_df = pd.DataFrame(
-        [{"variable_name": None, "variable_description": None, "context": None}]
-    )
+    dic = {}
+    for c in st.session_state["variables_df"].columns:
+        dic[c] = None
+    empty_df = pd.DataFrame([dic])
     st.session_state["variables_df"] = empty_df
+
+@st.dialog("Preview output format", width="large")
+def display_output_fmt_preview(selected_output_fmt):
+    if selected_output_fmt == "Custom output format":
+        st.text("For 'Custom output format', the output will depend on your specification below. Use the text area below to descibe each output column you'd like. Use the table to below to reiterate the column names.")
+        st.text("The 'Variable name' column will be included by default. Do not mention it in the text area below. If you specified a 'Variable description' or 'context' above, those will be included in a separate tab. Do not include those columns below.")
+    else:
+        preview_img_path = get_site_content_path(f"{selected_output_fmt}.png", "imgs")
+        st.image(preview_img_path, caption=f"Selected: {selected_output_fmt}", use_container_width=True)
 
 def update_var_spec_df_from_csv():
     csv_file = st.session_state["csv_upload"]
-    if csv_file is None:
-        return  # Don't do anything if no file is uploaded
-    try:
-        df = pd.read_csv(csv_file)
-        if list(df.columns) != ["variable_name", "variable_description"] and list(df.columns) != ["variable_name", "variable_description", "context"]:
-            df = pd.read_csv(csv_file, header=None)
-            if df.shape[1] == 2:
-                df.columns = ["variable_name", "variable_description"]
-                df["context"] = None  # Add a context column with None values
-            elif df.shape[1] == 3:
-                df.columns = ["variable_name", "variable_description", "context"]
-        st.session_state["variables_df"] = df
-    except Exception as e:
-        st.error(f"Error reading CSV: {e}")
+    if csv_file is not None:
+        try:
+            df = pd.read_csv(csv_file)
+            required_cols = ["variable_name", "variable_description"]
+            optional_cols = ["context",  "variable_group"]
+            improper_csv = False
+            if len([c for c in df.columns if c in required_cols]) < len(required_cols):
+                improper_csv = True
+            if len([c for c in df.columns if c not in required_cols + optional_cols]) > 0:
+                improper_csv = True
+            if improper_csv:
+                st.warning("Improper format: CSV must include a header row and include the required columns: {required_cols}.")
+            else:
+                if "variable_group" in list(df.columns):
+                    if st.session_state["variable_groups_included"] == False:
+                        st.session_state["variable_groups_included"] = True
+                else:
+                    if st.session_state["variable_groups_included"] == True: 
+                        st.session_state["variable_groups_included"] = False 
+                st.session_state["variables_df"] = df
+        except Exception as e:
+            st.error(f"Error reading CSV: {e}")
 
 def input_data_specs():
     st.markdown("")
@@ -238,26 +258,41 @@ def input_data_specs():
     )
     if "variables_df" not in st.session_state:
         st.session_state["variables_df"] = var_json_to_df("default_var_specs.json")
-    variable_specification_parameters = [
-        "variable_name",
-        "variable_description",
-        "context",
-    ]
+    if "variable_specification_parameters" not in st.session_state:
+        st.session_state["variable_specification_parameters"] = [
+            "variable_name",
+            "variable_description",
+            "context",
+        ]
     variables_df = st.session_state["variables_df"]
-    st.session_state["schema_table"] = st.data_editor(
-        variables_df,
-        num_rows="dynamic",
-        use_container_width=True,
-        hide_index=True,
-        column_order=variable_specification_parameters,
-    )
-    btn1, btn2, _, btn4 = st.columns([5, 5, 2, 3])
+    variables_df_cols = st.session_state["variable_specification_parameters"]
+    div = st.container()
+    btn1, btn2, btn3, btn4 = st.columns([1, 1, 1, 1])
     with btn1:
         st.button("Clear", on_click=clear_variables)
     with btn2:
         with st.popover("Populate with..."):
             st.button("SDGs", on_click=populate_with_SDGs)
             st.button("Just-Transition Themes", on_click=populate_with_just_transition)
+    with btn3:
+        with st.popover("Add grouping column"):
+            st.markdown("Add an initial column to the variable specification table above for grouping variables. " \
+                "This column cannot be used in the AI query or main query template above. It is mainly used for organizing the inputs and formatting the output.")
+            show_group = st.checkbox("Include variable groupings", key="variable_groups_included")
+            group_col_name = "variable_group"
+            if show_group and group_col_name not in variables_df.columns:
+                variables_df.insert(0, group_col_name, ['']*len(variables_df))
+                if group_col_name not in variables_df_cols:
+                    variables_df_cols.insert(0, group_col_name)
+                st.session_state["variable_specification_parameters"] = variables_df_cols
+                st.session_state["variables_df"] = variables_df
+            elif not show_group and group_col_name in variables_df.columns:
+                if group_col_name in list(variables_df.columns):
+                    variables_df = variables_df.drop(columns=[group_col_name])
+                if group_col_name in variables_df_cols:
+                    variables_df_cols.remove(group_col_name)
+                st.session_state["variable_specification_parameters"] = variables_df_cols
+                st.session_state["variables_df"] = variables_df
     with btn4:
         with st.popover("📤 Upload CSV"):
             st.file_uploader(
@@ -266,6 +301,18 @@ def input_data_specs():
                 key="csv_upload",
                 on_change=update_var_spec_df_from_csv
             )
+    for c in variables_df.columns:
+        if c not in variables_df_cols:
+            variables_df_cols.append(c)
+            st.session_state["variable_specification_parameters"] = variables_df_cols
+    with div:
+        st.session_state["schema_table"] = st.data_editor(
+            variables_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            column_order=st.session_state["variable_specification_parameters"],
+        )
     with st.expander("Advanced settings"):
         st.selectbox(
             "Optional: specify the overall operation type",
@@ -273,7 +320,8 @@ def input_data_specs():
             key="task_type",
         )
         var_names = list(st.session_state["schema_table"]["variable_name"].to_list())
-        if st.session_state["task_type"] == "Quote extraction":
+        col_output_fmt_select_1, col_output_fmt_select_2 = st.columns([7,1])
+        with col_output_fmt_select_1:
             options = st.session_state["output_format_options"]
             if "output_format" not in st.session_state:
                 st.session_state["output_format"] = list(options.keys())[1]
@@ -282,126 +330,129 @@ def input_data_specs():
                 options.keys(),
                 key="output_format",
             )
-            output_fmt_selected = st.session_state["output_format_options"][
-                st.session_state["output_format"]
-            ]
-            if output_fmt_selected == "quotes_sorted_and_labelled":
-                subcat_div1, subcat_div2 = st.columns([1, 1])
-                with subcat_div1:
-                    subcat1 = st.text_input(
-                        "1st categorization label:",
-                        value="SDG Targets",
-                        key="subcat1_label",
-                    )
-                with subcat_div2:
-                    subcat2 = st.text_input(
-                        "2nd categorization label (optional):",
-                        value="Climate Actions",
-                        key="subcat2_label",
-                    )
-                subcats_df_dic = {
-                    "variable_name": var_names,
-                    st.session_state["subcat1_label"]: [None] * len(var_names),
-                }
-                if subcat1:
-                    if subcat2:
-                        subcats_df_dic[st.session_state["subcat2_label"]] = [
-                            None
-                        ] * len(var_names)
-                    subcats_df = pd.DataFrame(subcats_df_dic)
-                    st.session_state["subcategories_df"] = st.data_editor(
-                        subcats_df,
-                        hide_index=True,
-                        disabled=["variable_name"],
-                        use_container_width=True,
-                    )
-                else:
-                    st.warning(
-                        "Please enter at least one subcategorization label or choose a different output format."
-                    )
-            elif output_fmt_selected == "custom_output_fmt":
-                st.session_state["custom_output_fmt_instructions"] = st.text_area(
-                    "Enter your custom output instructions. 'Variable name' (from the table above) will automatically be included. Don't mention it here.", height=100
+        with col_output_fmt_select_2:
+            st.markdown("<div style='padding-top:24px'></div>", unsafe_allow_html=True)
+            if st.button("🛈"):
+                display_output_fmt_preview(st.session_state["output_format"])
+        output_fmt_selected = st.session_state["output_format_options"][
+            st.session_state["output_format"]
+        ]
+        if output_fmt_selected == "quotes_sorted_and_labelled":
+            subcat_div1, subcat_div2 = st.columns([1, 1])
+            with subcat_div1:
+                subcat1 = st.text_input(
+                    "1st categorization label:",
+                    value="SDG Targets",
+                    key="subcat1_label",
                 )
-                if 'custom_output_columns' not in st.session_state:
-                    # Create the initial DataFrame with 2 columns and 1 data row
-                    initial_data = {
-                        "Output Column 1": ["Variable name"],
-                        "Output Column 2": ["Response"],
-                    }
-                    st.session_state["custom_output_columns"] = pd.DataFrame(initial_data)
-                st.text("Enter the custom column names described in the text area above.")
-                custom_output_col_table_div = st.container()              
-                col1, col2 = st.columns(2)
-                with col1:
-                    with st.form("add_output_column_form"):
-                        new_column_name = st.text_input("Enter new column name")
-                        submitted = st.form_submit_button("➕ Add Column")
-                    if submitted:
-                        if new_column_name and new_column_name not in st.session_state["custom_output_columns"].iloc[0].tolist():
-                            id_col = len(st.session_state["custom_output_columns"].keys()) + 1
-                            f"Output Column {id_col}"
-                            st.session_state["custom_output_columns"][f"Output Column {id_col}"] = new_column_name
-                        elif not new_column_name:
-                            st.warning("Please enter a name for the new column.")
-                        else:
-                            st.warning(f"Column '{new_column_name}' already exists.")
-                with col2:
-                    with st.form("remove_column_form"):
-                        disable_remove = len(st.session_state["custom_output_columns"].columns) <= 2
-                        columns_to_remove = st.selectbox(
-                            "Select columns to remove",
-                            options=[""] + st.session_state["custom_output_columns"].columns[1:],
-                            help="You cannot remove columns if only two remain.",
-                            disabled=disable_remove
-                        )
-                        submitted = st.form_submit_button(
-                            "➖ Remove Column",
-                            disabled=disable_remove,
-                        )
-                        if submitted:
-                            if not columns_to_remove:
-                                st.warning("Please select one or more columns to remove.")
-                            else:
-                                st.session_state["custom_output_columns"] = st.session_state["custom_output_columns"].drop(columns=columns_to_remove)
-                                edited_df = st.session_state["custom_output_columns"]
-                                new_df = {}
-                                for i, col_name in enumerate(edited_df):
-                                    new_df[f"Column Name {i+1}"] = edited_df[col_name]
-                                edited_df = pd.DataFrame(new_df)
-                                st.session_state["custom_output_columns"] = edited_df
-                with custom_output_col_table_div:
-                    edited_df = st.data_editor(
-                        st.session_state["custom_output_columns"],
-                        hide_index=True,
-                        disabled=["Output Column 1"],
-                        use_container_width=True
-                    )  
-                    st.session_state["custom_output_columns"] = edited_df  
-                if not edited_df.equals(st.session_state["custom_output_columns"]):
-                    st.session_state["custom_output_columns"] = edited_df
-                    st.toast("Changes saved!")
-                """
-                st.markdown(
-                    "Optional: include specific output instructions for each variable using {output_detail} above"
+            with subcat_div2:
+                subcat2 = st.text_input(
+                    "2nd categorization label (optional):",
+                    value="Climate Actions",
+                    key="subcat2_label",
                 )
-                init_output_detail_df = pd.DataFrame(
-                    {"variable_name": var_names, "output_detail": [None] * len(var_names)}
-                )
-                st.session_state["output_detail_df"] = st.data_editor(
-                    init_output_detail_df,
+            subcats_df_dic = {
+                "variable_name": var_names,
+                st.session_state["subcat1_label"]: [None] * len(var_names),
+            }
+            if subcat1:
+                if subcat2:
+                    subcats_df_dic[st.session_state["subcat2_label"]] = [
+                        None
+                    ] * len(var_names)
+                subcats_df = pd.DataFrame(subcats_df_dic)
+                st.session_state["subcategories_df"] = st.data_editor(
+                    subcats_df,
                     hide_index=True,
                     disabled=["variable_name"],
                     use_container_width=True,
                 )
-                """
+            else:
+                st.warning(
+                    "Please enter at least one subcategorization label or choose a different output format."
+                )
+        elif output_fmt_selected == "custom_output_fmt":
+            st.session_state["custom_output_fmt_instructions"] = st.text_area(
+                "Enter your custom output instructions. 'Variable name' (from the table above) will automatically be included. Don't mention it here.", height=100
+            )
+            if 'custom_output_columns' not in st.session_state:
+                # Create the initial DataFrame with 2 columns and 1 data row
+                initial_data = {
+                    "Output Column 1": ["Variable name"],
+                    "Output Column 2": ["Response"],
+                }
+                st.session_state["custom_output_columns"] = pd.DataFrame(initial_data)
+            st.text("Enter the custom column names described in the text area above.")
+            custom_output_col_table_div = st.container()              
+            col1, col2 = st.columns(2)
+            with col1:
+                with st.form("add_output_column_form"):
+                    new_column_name = st.text_input("Enter new column name")
+                    submitted = st.form_submit_button("➕ Add Column")
+                if submitted:
+                    if new_column_name and new_column_name not in st.session_state["custom_output_columns"].iloc[0].tolist():
+                        id_col = len(st.session_state["custom_output_columns"].keys()) + 1
+                        f"Output Column {id_col}"
+                        st.session_state["custom_output_columns"][f"Output Column {id_col}"] = new_column_name
+                    elif not new_column_name:
+                        st.warning("Please enter a name for the new column.")
+                    else:
+                        st.warning(f"Column '{new_column_name}' already exists.")
+            with col2:
+                with st.form("remove_column_form"):
+                    disable_remove = len(st.session_state["custom_output_columns"].columns) <= 2
+                    columns_to_remove = st.selectbox(
+                        "Select columns to remove",
+                        options=[""] + st.session_state["custom_output_columns"].columns[1:],
+                        help="You cannot remove columns if only two remain.",
+                        disabled=disable_remove
+                    )
+                    submitted = st.form_submit_button(
+                        "➖ Remove Column",
+                        disabled=disable_remove,
+                    )
+                    if submitted:
+                        if not columns_to_remove:
+                            st.warning("Please select one or more columns to remove.")
+                        else:
+                            st.session_state["custom_output_columns"] = st.session_state["custom_output_columns"].drop(columns=columns_to_remove)
+                            edited_df = st.session_state["custom_output_columns"]
+                            new_df = {}
+                            for i, col_name in enumerate(edited_df):
+                                new_df[f"Column Name {i+1}"] = edited_df[col_name]
+                            edited_df = pd.DataFrame(new_df)
+                            st.session_state["custom_output_columns"] = edited_df
+            with custom_output_col_table_div:
+                edited_df = st.data_editor(
+                    st.session_state["custom_output_columns"],
+                    hide_index=True,
+                    disabled=["Output Column 1"],
+                    use_container_width=True
+                )  
+                st.session_state["custom_output_columns"] = edited_df  
+            if not edited_df.equals(st.session_state["custom_output_columns"]):
+                st.session_state["custom_output_columns"] = edited_df
+                st.toast("Changes saved!")
+            """
+            st.markdown(
+                "Optional: include specific output instructions for each variable using {output_detail} above"
+            )
+            init_output_detail_df = pd.DataFrame(
+                {"variable_name": var_names, "output_detail": [None] * len(var_names)}
+            )
+            st.session_state["output_detail_df"] = st.data_editor(
+                init_output_detail_df,
+                hide_index=True,
+                disabled=["variable_name"],
+                use_container_width=True,
+            )
+            """
 
 
 def process_table():
     df = st.session_state["schema_table"]
     df = df.fillna("")
     num_cols = df.shape[1]
-    df.columns = ["variable_name", "variable_description", "context"][:num_cols]
     df["variable_name"] = df["variable_name"].replace("", pd.NA)
     df.dropna(subset=["variable_name"], inplace=True)
     df = df[df["variable_name"].notnull()]
@@ -409,6 +460,7 @@ def process_table():
         row["variable_name"]: {
             "variable_description": row["variable_description"],
             **({"context": row["context"]} if "context" in df.columns else {}),
+            **({"variable_group": row["variable_group"]} if "variable_group" in df.columns else {}),
         }
         for _, row in df.iterrows()
     }
@@ -515,7 +567,6 @@ def get_user_inputs():
         st.session_state["output_format"]
     ]
     additional_info = None
-    print(output_fmt)
     if task_type == "Quote extraction" and output_fmt == "quotes_sorted_and_labelled":
         additional_info = st.session_state["subcategories_df"]
     elif output_fmt == "custom_output_fmt":

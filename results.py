@@ -1,8 +1,4 @@
-from datetime import datetime
-from docx.shared import Pt
 import os
-import pandas as pd
-
 
 def get_output_fname(path_fxn, filetype="xlsx"):
     return path_fxn(f"results.{filetype}")

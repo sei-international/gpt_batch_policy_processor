@@ -56,19 +56,18 @@ def query_gpt_for_variable_specification(
     variable_name,
     var_spec,
     context,
-    relevant_texts,
+    relevant_excerpts,
     run_on_full_text,
     gpt_client,
     gpt_model="4.1",
 ):
     query_template = gpt_analyzer.main_query
-    excerpts = "\n".join(relevant_texts)
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=var_spec, context=context)} \n\n"
     main_query = gpt_analyzer.optional_add_categorization(variable_name, main_query)
     output_prompt = gpt_analyzer.output_fmt_prompt(variable_name)
     if len(output_prompt) > 1:
         output_prompt = " " + output_prompt
-    prompt = f'<instructions>{main_query}.{output_prompt}</instructions> \n\n """{excerpts}"""'
+    prompt = f'<instructions>{main_query}.{output_prompt}</instructions> \n\n """{relevant_excerpts}"""'
     resp_fmt = gpt_analyzer.resp_format_type()
     return fetch_variable_info(
         gpt_client, gpt_model, prompt, resp_fmt, run_on_full_text

@@ -322,7 +322,7 @@ def input_data_specs():
         var_names = list(st.session_state["schema_table"]["variable_name"].to_list())
         col_output_fmt_select_1, col_output_fmt_select_2 = st.columns([7,1])
         with col_output_fmt_select_1:
-            options = st.session_state["output_format_options"]
+            options = get_formatter_type_with_labels(st.session_state["task_type"])
             if "output_format" not in st.session_state:
                 st.session_state["output_format"] = list(options.keys())[1]
             st.selectbox(

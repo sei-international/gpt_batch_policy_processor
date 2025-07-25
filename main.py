@@ -34,7 +34,7 @@ from interface import (
     load_header,
 )
 from query_gpt import new_openai_session, query_gpt_for_variable_specification
-from read_pdf import extract_text_chunks_from_pdf
+from read_pdf import extract_text_chunks_from_pdf, format_quotes_by_section
 from relevant_excerpts import (
     generate_all_embeddings,
     embed_variable_specifications,
@@ -50,6 +50,7 @@ import json
 import os
 import requests
 import streamlit as st
+import sys
 import time
 import traceback
 
@@ -63,8 +64,7 @@ def get_resource_path(relative_path):
 
 def extract_policy_doc_info(
     gpt_analyzer,
-    text_embeddings,
-    input_text_chunks,
+    pdf_text_chunks_w_embs,
     char_count,
     var_embeddings,
     num_excerpts,
@@ -76,8 +76,7 @@ def extract_policy_doc_info(
 
     Args:
         gpt_analyzer: The GPT analyzer object .
-        text_embeddings: Embeddings of the text chunks.
-        input_text_chunks: List of text chunks from the input document.
+        pdf_text_chunks_w_embs: List of text chunks from the input document.
         char_count: Character count of the text.
         var_embeddings: Embeddings for the variables.
         num_excerpts: Number of excerpts to extract.
@@ -88,7 +87,6 @@ def extract_policy_doc_info(
         The response format depends on the Analyzer class selected.
     """
     policy_doc_data = {}
-    text_chunks = input_text_chunks
     client, max_num_chars = new_openai_session(openai_apikey)
     gpt_model = gpt_analyzer.get_gpt_model()
     # If the text is short, we don't need to generate embeddings to find "relevant texts"
@@ -102,13 +100,19 @@ def extract_policy_doc_info(
         )
         if not run_on_full_text:
             top_text_chunks_w_emb = find_top_relevant_texts(
-                text_embeddings,
-                input_text_chunks,
+                pdf_text_chunks_w_embs,
                 var_embedding,
                 num_excerpts,
                 var_name,
             )
-            text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
+            #text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
+            if gpt_analyzer.organize_text_chunks_by_section is True:
+                text_chunks = format_quotes_by_section(top_text_chunks_w_emb)
+            else:
+                text_chunks = [f"{t['text_chunk']} [page(s) {','.join(str(t['page_nums']))}]" for t in top_text_chunks_w_emb]
+        else:
+            text_chunks = [f"{t['text_chunk']} [page(s) {','.join(str(t['page_nums']))}]" for t in pdf_text_chunks_w_embs]
+
         resp = query_gpt_for_variable_specification(
             gpt_analyzer,
             var_name,
@@ -171,9 +175,9 @@ def log(new_content):
         new_content: The new content to log.
     """
     github_token = get_secret("github_token")
-    log_fname = "log"
+    log_fname = "ai-tool-log"
     gist_base_url = "https://api.github.com/gists"
-    gist_url = f"{gist_base_url}/47029f286297a129a654110ebe420f5f"
+    gist_url = f"{gist_base_url}/cdc9929b3a24b3fc4150579b2b2bb2b3"
     headers = {
         "Authorization": f"token {github_token}",
         "Accept": "application/vnd.github.v3+json",
@@ -181,6 +185,7 @@ def log(new_content):
     current_content = fetch_gist_content(gist_url, headers, log_fname)
     if current_content is not None:
         updated_content = f"{current_content} \n {new_content}"
+        updated_content = updated_content + "\n ----------------------------------------------------------------------------"
         data = {"files": {log_fname: {"content": updated_content}}}
         requests.patch(gist_url, headers=headers, data=json.dumps(data))
 
@@ -208,27 +213,27 @@ def main(gpt_analyzer, openai_apikey):
             country_start_time = time.time()
             # 1) read pdf
             text_chunk_size = gpt_analyzer.get_chunk_size()
-            text_sections = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
+            doc_title, text_sections = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
             if "error" in text_sections[0]:
                 failed_pdfs.append(pdf)
                 print(f"Failed: {pdf} with {text_sections[0]['error']}")
                 continue
             num_pages_in_pdf = 0
             num_sections = len(text_sections)
-            ## Most PDFs will only have 1 text_section: this is used to break up long documents (>250 pages)
+            ## Most PDFs will only have 1 text_section: this is used to break up long documents (>250 pages)            
             for text_section in text_sections:
                 text_chunks, num_pages, char_count, section = [
                     text_section[k]
                     for k in ["text_chunks", "num_pages", "num_chars", "section_num"]
                 ]
-                if num_sections > 0:
+                if num_sections > 1:
                     output_pdf_path = f"{pdf_path} ({section} of {len(text_sections)})"
                 else:
                     output_pdf_path = f"{pdf_path}"
                 num_pages_in_pdf += num_pages
                 total_num_pages += num_pages
                 openai_client, _ = new_openai_session(openai_apikey)
-                pdf_embeddings, pdf_text_chunks = generate_all_embeddings(
+                pdf_text_chunks_w_embs = generate_all_embeddings(
                     openai_client, output_pdf_path, text_chunks, get_resource_path
                 )
                 # 2) Prepare embeddings to grab most relevant text excerpts for each variable
@@ -241,8 +246,7 @@ def main(gpt_analyzer, openai_apikey):
                 num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
                 policy_info = extract_policy_doc_info(
                     gpt_analyzer,
-                    pdf_embeddings,
-                    pdf_text_chunks,
+                    pdf_text_chunks_w_embs,
                     char_count,
                     var_embeddings,
                     num_excerpts,
@@ -255,9 +259,17 @@ def main(gpt_analyzer, openai_apikey):
                 "Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf}
             )
         except Exception as e:
-            print(e)
-            log(f"Error for {pdf}: {e}")
-            log(traceback.format_exc())
+            try:
+                output_metrics(
+                    output_doc,
+                    len(gpt_analyzer.pdfs),
+                    time.time() - total_start_time,
+                    total_num_pages,
+                    failed_pdfs,
+                )
+            except Exception as e2:
+                print("Error in output_metrics:", e2)
+            return total_num_pages, output_doc, e
 
     output_metrics(
         output_doc,
@@ -270,12 +282,23 @@ def main(gpt_analyzer, openai_apikey):
     output_doc.save(buffer)
     buffer.seek(0)
     output_file_contents = buffer.read()
-    email_results(output_file_contents, gpt_analyzer.email)
+    #email_results(output_file_contents, gpt_analyzer.email)
     buffer.seek(0)
     output_file_contents = buffer.read()
     display_output(output_file_contents)
-    return total_num_pages
+    return total_num_pages, output_doc, None
 
+def log_error(e, gpt_analyzer):
+    st.error(f"Error processing PDFs: {e}")
+    partial_email = "unknown_email"
+    msg = f"{e}\n{traceback.format_exc()}\n"
+    if gpt_analyzer:
+        partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
+        msg = msg + f"ERROR --> {gpt_analyzer}\n"
+    st.error(f"Error generating output document: {e}")
+    log(
+        f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {msg}"
+    )
 
 if __name__ == "__main__":
     try:
@@ -292,23 +315,30 @@ if __name__ == "__main__":
                     build_interface(temp_dir)
                     if st.button("Run", disabled=st.session_state.get("run_disabled", False)):
                         gpt_analyzer = get_user_inputs()
-                        with st.spinner("Generating output document..."):
-                            apikey_id = "openai_apikey"
-                            if "apikey_id" in st.session_state:
-                                apikey_id = st.session_state["apikey_id"]
-                            openai_apikey = get_secret(apikey_id)
-                            num_pages = main(gpt_analyzer, openai_apikey)
-                            log(
-                                f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id; {num_pages} pages; {gpt_analyzer}"
-                            )
-                        st.success("Document generated!")
-                        os.unlink(st.session_state["temp_zip_path"])
+                        try:
+                            with st.spinner("Generating output document..."):
+                                apikey_id = "openai_apikey"
+                                if "apikey_id" in st.session_state:
+                                    apikey_id = st.session_state["apikey_id"]
+                                openai_apikey = get_secret(apikey_id)
+                                num_pages, output_doc, e = main(gpt_analyzer, openai_apikey)
+                                if e is not None:
+                                    log_error(e, gpt_analyzer)
+                                    sys.exit(1)
+                                partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
+                                log(
+                                    f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
+                                )
+                            st.success("Document generated!")
+                            os.unlink(st.session_state["temp_zip_path"])
+                        except Exception as e:
+                            log_error(e, gpt_analyzer)
                 with tab2:
                     about_tab()
                 with tab3:
                     FAQ()
     except Exception as e:
-        log(
-            f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT --> apikey_id:{e}"
-        )
-        log(traceback.format_exc())
+        a = None
+        if gpt_analyzer:
+            a = gpt_analyzer
+        log_error(e, gpt_analyzer)

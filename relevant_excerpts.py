@@ -12,9 +12,9 @@ def get_cache_fname(pdf_path, path_fxn):
     return f"{cache_dir}/{pdf_fname.replace('.pdf','.json')}"
 
 
-def cache_embeddings(embeddings, text_chunks, pdf_file_path, path_fxn):
+def cache_embeddings(text_chunks, pdf_file_path, path_fxn):
     json_file_path = get_cache_fname(pdf_file_path, path_fxn)
-    output_dict = {"embeddings": embeddings, "text_chunks": text_chunks}
+    output_dict = {"text_chunks_w_embeddings": text_chunks}
     with open(json_file_path, "w", encoding="utf-8") as f:
         json.dump(output_dict, f)
 
@@ -30,18 +30,19 @@ def generate_embedding(openai_client, text):
 
 
 def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
-    embeddings_model, token_limit = "text-embedding-3-small", 8000
+    embeddings_model, token_limit = "text-embedding-3-small", 7000
     cache_fname = get_cache_fname(pdf_path, path_fxn)
     if os.path.exists(cache_fname):
         with open(cache_fname, "r", encoding="utf-8") as f:
             cached_embeddings = json.load(f)
-            return cached_embeddings["embeddings"], cached_embeddings["text_chunks"]
+            return cached_embeddings["text_chunks_w_embeddings"]
     else:
         batches = []
         current_batch = []
         current_tokens = 0
         enc = tiktoken.encoding_for_model(embeddings_model)
-        for text in text_chunks:
+        for text_chunk_dict in text_chunks:
+            text = text_chunk_dict["text_chunk"]
             tokens = len(enc.encode(text))
             if current_tokens + tokens > token_limit:
                 batches.append(current_batch)
@@ -58,8 +59,10 @@ def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
             response = generate_embeddings(openai_client, batch, embeddings_model)
             embeddings.extend([r.embedding for r in response.data])
 
-        cache_embeddings(embeddings, text_chunks, pdf_path, path_fxn)
-        return embeddings, text_chunks
+        for i in range(len(text_chunks)):
+            text_chunks[i]["embedding"] = embeddings[i]
+        cache_embeddings(text_chunks, pdf_path, path_fxn)
+        return text_chunks
 
 
 def embed_one_variable_specification(openai_client, prompt):
@@ -91,25 +94,32 @@ def cosine_similarity(a, b):
 
 
 def find_top_relevant_texts(
-    text_embeddings, pdf_text_chunks, var_embedding, num_excerpts, var_name
+    pdf_text_chunks_w_embeddings, var_embedding, min_num_excerpts, var_name
 ):
     relevant_texts = []
     indeces = set()
     similarity_scores = []
-    for i in range(len(text_embeddings)):
-        if var_name in pdf_text_chunks[i]:
+    for i in range(len(pdf_text_chunks_w_embeddings)):
+        text_chunk_dict = pdf_text_chunks_w_embeddings[i]
+        txt, txt_embs = [text_chunk_dict[k] for k in ["text_chunk", "embedding"]]
+        if var_name in txt:
             indeces.add(i)
-            relevant_texts.append((text_embeddings[i], pdf_text_chunks[i]))
-        text_embedding = text_embeddings[i]
-        similarity = cosine_similarity(var_embedding, text_embedding)
+            relevant_texts.append(text_chunk_dict)
+        similarity = cosine_similarity(var_embedding, txt_embs)
         similarity_scores.append((i, similarity))
-    # Sort by similarity score in descending order and take the top_n items
-    sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)[
-        :num_excerpts
-    ]
-    ## RETURNS [(textembed, text), ..., 10x] for each variable
-    return relevant_texts + [
-        (text_embeddings[i], pdf_text_chunks[i])
-        for i, _ in sorted_embeddings
-        if i not in indeces
-    ]
+    for sim_score in similarity_scores:
+        i = sim_score[0]
+        if i not in indeces:
+            if sim_score[1] > 0.7:
+                relevant_texts.append(pdf_text_chunks_w_embeddings[i])
+                indeces.add(i)
+        if len(relevant_texts) < min_num_excerpts:
+            j=0
+            sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
+            while len(relevant_texts) < min_num_excerpts:
+                emb_i = sorted_embeddings[j][0]
+                if emb_i not in indeces:
+                    relevant_texts.append(pdf_text_chunks_w_embeddings[emb_i])
+                    indeces.add(emb_i)
+                j+=1
+    return relevant_texts

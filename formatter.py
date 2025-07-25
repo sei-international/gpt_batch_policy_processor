@@ -3,14 +3,14 @@ import json
 class OutputFormatter():
     def __init__(self, additional_info):
         self.additional_info = additional_info
-    def output_fmt_prompt(self, var_name):
+    def output_fmt_prompt(self, var_name, base_intruction):
         pass
     def optional_add_categorization(self, var_name, query):
         return query
     def get_results(self, policy_info):
         pass
     def format_gpt_response(self, resp):
-        return json.loads(resp)["list_of_quotes"]
+        return json.loads(resp)["list_resp"]
     def get_output_headers(self):
         return ["Variable", "Response"]
     def resp_format_type(self):
@@ -19,29 +19,29 @@ class OutputFormatter():
 class RawFormatter(OutputFormatter):
     def __init__(self, additional_info):
         super().__init__(additional_info)
-    def output_fmt_prompt(self, var_name):
-        return "Provide an exhaustive list of quotes."
+    def output_fmt_prompt(self, var_name, base_intruction):
+        return base_intruction
     def get_results(self, policy_info):
-        quotes = {}
-        for var_name, relevant_quotes_gpt_resp in policy_info.items():
-            quotes[var_name] = {
-                self.get_output_headers()[1]: relevant_quotes_gpt_resp
+        resp_vals_fmt = {}
+        for var_name, gpt_resp_vals in policy_info.items():
+            resp_vals_fmt[var_name] = {
+                self.get_output_headers()[1]: gpt_resp_vals
             }
-        return quotes
+        return resp_vals_fmt
     def format_gpt_response(self, resp):
         return resp
-    def get_output_headers(self):               
-        return ["Variable", "Relevant Quotes"]
+    def get_output_headers(self):              
+        return ["Variable", self.optional_resp_col]
     def resp_format_type(self):
         return "text"
 
 class StructuredFormatter(OutputFormatter):
     def __init__(self, additional_info):
         super().__init__(additional_info)
-    def output_fmt_prompt(self, var_name):
-        output_fmt_str = "Provide an exhaustive list of relevant quotes in the following json format: "
+    def output_fmt_prompt(self, var_name, base_instruction):
+        output_fmt_str = f"{base_instruction} in the following json format: "
         output_json_fmt = {
-            "list_of_quotes": [{"quote": "...", "page_number": "...", "justification": "..."}],
+            "list_resp": [{self.optional_resp_col: "...", "page_number(s)": "...", "justification": "..."}],
         }
         return output_fmt_str + str(output_json_fmt).replace("]}", ", ...]}")
     def get_results(self, policy_info):
@@ -49,17 +49,17 @@ class StructuredFormatter(OutputFormatter):
         for var_name, quotes_json in policy_info.items():
             quotes_for_var, justifications = [], []
             for quote_json in quotes_json:
-                quotes_for_var.append(f"{quote_json['quote']} (page {quote_json['page_number']})")
+                quotes_for_var.append(f"{quote_json[self.optional_resp_col]} (page {quote_json['page_number(s)']})")
                 justifications.append(quote_json["justification"])
             all_quotes[var_name] = {self.get_output_headers()[1]: quotes_for_var, self.get_output_headers()[2]: justifications}
         return all_quotes
     def get_output_headers(self):               
-        return ["Variable", "Relevant Quotes", "Justification"]
+        return ["Variable",  self.optional_resp_col, "Justification"]
 
 class CustomFormatter(OutputFormatter):
     def __init__(self, additional_info):
         super().__init__(additional_info)
-    def output_fmt_prompt(self, var_name):
+    def output_fmt_prompt(self, var_name, base_instruciton):
         #df = self.additional_info["output_detail"]
         #output_detail = df.loc[df["variable_name"] == var_name, "output_detail"].values[0]
         output_json_fmt = {k:"..." for k in self.get_output_headers() if k != "Variable name"}
@@ -79,13 +79,13 @@ def is_similar_quote(q1, q2):
     q1, q2 = q1.lower().strip(), q2.lower().strip()
     return q1 in q2 or q2 in q1 or q1 == q2 or q1 is q2
 
-def get_results_with_sorted_quotes(policy_info, additional_info, output_headers, is_labelled):
+def get_results_with_sorted_quotes(policy_info, additional_info, output_headers, optional_resp_col, is_labelled):
     temp_quotes = []
     all_quotes = {}
     for var_name, quotes_json in policy_info.items():
         for quote_json in quotes_json:
             curr_quote = (
-                f"{quote_json['quote']} (page {quote_json['page_number']})"
+                f"{quote_json[optional_resp_col]} (page {quote_json['page_number(s)']})"
             )
             subcat_vals = None
             if is_labelled:
@@ -131,27 +131,27 @@ def get_results_with_sorted_quotes(policy_info, additional_info, output_headers,
 class sortedFormatter(OutputFormatter):
     def __init__(self, additional_info):
         super().__init__(additional_info)
-    def output_fmt_prompt(self, var_name):
+    def output_fmt_prompt(self, var_name, base_instruction):
         output_json_fmt = {
-            "list_of_quotes": [{"quote": "...", "page_number": "..."}]
+            "list_resp": [{self.optional_resp_col: "...", "page_number(s)": "..."}]
         }
         output_fmt_str = str(output_json_fmt).replace("]}", ", ...]}")
         return f"Return your response in the following json format: \n {output_fmt_str}"   
     def get_results(self, policy_info):
-        return get_results_with_sorted_quotes(policy_info, self.additional_info, self.get_output_headers(), False)
+        return get_results_with_sorted_quotes(policy_info, self.additional_info, self.get_output_headers(), self.optional_resp_col, False)
     def get_output_headers(self):               
-        return ["Quote", "Relevant Variables"]
+        return [self.optional_resp_col, "Relevant Variables"]
 
 class sortedAndLabelledFormatter(OutputFormatter):
     def __init__(self, additional_info):
         super().__init__(additional_info)
-    def output_fmt_prompt(self, var_name):
+    def output_fmt_prompt(self, var_name, base_instruction):
         output_json_fmt = {
-            "list_of_quotes": [{"quote": "...", "page_number": "..."}]
+            "list_resp": [{self.optional_resp_col: "...", "page_number(s)": "..."}]
         }
         for col in self.additional_info.columns[1:]:
             label = f"relevant_{col.lower().replace(' ', '_')}"
-            output_json_fmt["list_of_quotes"][0][label] = "..."
+            output_json_fmt["list_resp"][0][label] = "..."
         output_fmt_str = str(output_json_fmt).replace("]}", ", ...]}")
         return f"Return your response in the following json format: \n {output_fmt_str}"    
     def optional_add_categorization(self, var_name, query):
@@ -167,9 +167,9 @@ class sortedAndLabelledFormatter(OutputFormatter):
         query += "."
         return query
     def get_results(self, policy_info):      
-        return get_results_with_sorted_quotes(policy_info, self.additional_info, self.get_output_headers(), True)
+        return get_results_with_sorted_quotes(policy_info, self.additional_info, self.get_output_headers(), self.optional_resp_col, True)
     def get_output_headers(self):               
-        headers = ["Quote", "Relevant Variables"]
+        headers = [self.optional_resp_col, "Relevant Variables"]
         for subcat_header in self.additional_info.columns[1:]:
             headers.append(subcat_header)
         return headers
@@ -177,7 +177,7 @@ class sortedAndLabelledFormatter(OutputFormatter):
 def get_formatter_types(task_type=None):
     formatters = {
         "quotes_structured": {
-            "label": "Return list of quotes per variable", 
+            "label": "Return list of text excerpts per variable", 
             "class": StructuredFormatter
         },
         "quotes_gpt_resp": {
@@ -199,7 +199,7 @@ def get_formatter_types(task_type=None):
     }
     formatters_for_each_task_type = {
          "Quote extraction": ["quotes_gpt_resp", "quotes_structured", "quotes_sorted", "quotes_sorted_and_labelled", "custom_output_fmt"],  
-         "Targeted summaries": ["quotes_gpt_resp", "quotes_structured", "custom_output_fmt"]
+         "Targeted summaries": ["quotes_gpt_resp", "custom_output_fmt"]
     }
     if task_type==None:
         return formatters

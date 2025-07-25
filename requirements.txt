@@ -1,13 +1,11 @@
-black
-numpy
 openai
 openpyxl
 pandas
-pdfplumber
 pymupdf
+pymupdf4llm
 python-docx
 requests
-ruff
+segtok
 sendgrid
 streamlit
 tiktoken

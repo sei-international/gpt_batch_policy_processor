@@ -8,4 +8,5 @@ __pycache__/
 __pycache__/*
 embeddings_cache/
 .devcontainer/devcontainer.json
-venv/
+.venv/
+archive/

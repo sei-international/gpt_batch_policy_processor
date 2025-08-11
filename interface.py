@@ -100,7 +100,7 @@ def upload_file(temp_dir):
                     if filename.endswith(".pdf"):
                         file_path = os.path.join(subdir_path, filename)
                         pdfs.append(file_path)
-
+    print("PDFs uploaded:", pdfs)
     if pdfs:
         st.session_state["pdfs"] = pdfs
         st.success(f"Uploaded {len(pdfs)} document(s) successfully! Please first run on a subset of PDFs to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.", icon="✅")
@@ -477,6 +477,7 @@ def select_gpt_model():
         st.session_state["gpt_model"] = "4.1"  # Default model
     model_options = {
         "gpt-4.1": "4.1",
+        "gpt-5": "5 (recommended by OpenAI)",
         "o4-mini": "o4-mini", 
         "o3": "o3 (slower, smarter, more expensive)",
     }  

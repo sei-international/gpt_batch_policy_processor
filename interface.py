@@ -100,7 +100,6 @@ def upload_file(temp_dir):
                     if filename.endswith(".pdf"):
                         file_path = os.path.join(subdir_path, filename)
                         pdfs.append(file_path)
-    print("PDFs uploaded:", pdfs)
     if pdfs:
         st.session_state["pdfs"] = pdfs
         st.success(f"Uploaded {len(pdfs)} document(s) successfully! Please first run on a subset of PDFs to fine-tune functionality. Careless processing causes avoidable AI-borne GHG emissions.", icon="✅")

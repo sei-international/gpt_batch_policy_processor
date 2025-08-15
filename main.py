@@ -52,7 +52,7 @@ import requests
 import streamlit as st
 import sys
 import time
-import traceback
+import traceback 
 
 
 def get_resource_path(relative_path):
@@ -259,8 +259,7 @@ def main(gpt_analyzer, openai_apikey):
                     )
                 except Exception as e:
                     print(f"[DEBUG] Failure inside extract_policy_doc_info for pdf {pdf}: {e}")
-                    import traceback as tb
-                    tb.print_exc()
+                    traceback.print_exc()
                     print(f"[DEBUG] var_embeddings keys: {list(var_embeddings.keys()) if isinstance(var_embeddings, dict) else repr(var_embeddings)}")
                     print(f"[DEBUG] pdf_text_chunks_w_embs sample: {pdf_text_chunks_w_embs[:3] if hasattr(pdf_text_chunks_w_embs, '__len__') else repr(pdf_text_chunks_w_embs)}")
                     raise

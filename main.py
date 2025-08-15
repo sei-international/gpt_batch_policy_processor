@@ -208,6 +208,9 @@ def main(gpt_analyzer, openai_apikey):
     failed_pdfs = []
     gpt_model = gpt_analyzer.get_gpt_model()
     for pdf in gpt_analyzer.pdfs:
+        if not isinstance(gpt_analyzer.pdfs, (list, tuple)):
+            st.warning(f"Expected gpt_analyzer.pdfs to be a list; got {type(gpt_analyzer.pdfs)}. Coercing to list.")
+            gpt_analyzer.pdfs = [gpt_analyzer.pdfs]
         pdf_path = get_resource_path(f"{pdf.replace('.pdf','')}.pdf")
         try:
             country_start_time = time.time()
@@ -244,15 +247,23 @@ def main(gpt_analyzer, openai_apikey):
 
                 # 3) Iterate through each variable specification to grab relevant texts and query
                 num_excerpts = gpt_analyzer.get_num_excerpts(num_pages)
-                policy_info = extract_policy_doc_info(
-                    gpt_analyzer,
-                    pdf_text_chunks_w_embs,
-                    char_count,
-                    var_embeddings,
-                    num_excerpts,
-                    openai_apikey,
-                    gpt_model
-                )
+                try:
+                    policy_info = extract_policy_doc_info(
+                        gpt_analyzer,
+                        pdf_text_chunks_w_embs,
+                        char_count,
+                        var_embeddings,
+                        num_excerpts,
+                        openai_apikey,
+                        gpt_model
+                    )
+                except Exception as e:
+                    print(f"[DEBUG] Failure inside extract_policy_doc_info for pdf {pdf}: {e}")
+                    import traceback as tb
+                    tb.print_exc()
+                    print(f"[DEBUG] var_embeddings keys: {list(var_embeddings.keys()) if isinstance(var_embeddings, dict) else repr(var_embeddings)}")
+                    print(f"[DEBUG] pdf_text_chunks_w_embs sample: {pdf_text_chunks_w_embs[:3] if hasattr(pdf_text_chunks_w_embs, '__len__') else repr(pdf_text_chunks_w_embs)}")
+                    raise
                 # 4) Output Results
                 output_results(gpt_analyzer, output_doc, output_pdf_path, policy_info)
             print_milestone(
@@ -301,6 +312,7 @@ def log_error(e, gpt_analyzer):
     )
 
 if __name__ == "__main__":
+    gpt_analyzer = None
     try:
         with TemporaryDirectory() as temp_dir:
             logo_path = os.path.join(os.path.dirname(__file__), "public", "logo2.jpg")
@@ -330,7 +342,8 @@ if __name__ == "__main__":
                                     f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
                                 )
                             st.success("Document generated!")
-                            os.unlink(st.session_state["temp_zip_path"])
+                            if "temp_zip_path" in st.session_state:
+                                os.unlink(st.session_state["temp_zip_path"])
                         except Exception as e:
                             log_error(e, gpt_analyzer)
                 with tab2:

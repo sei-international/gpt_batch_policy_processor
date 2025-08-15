@@ -96,6 +96,8 @@ def cosine_similarity(a, b):
 def find_top_relevant_texts(
     pdf_text_chunks_w_embeddings, var_embedding, min_num_excerpts, var_name
 ):
+    if not pdf_text_chunks_w_embeddings:
+        return []
     relevant_texts = []
     indeces = set()
     similarity_scores = []
@@ -116,7 +118,8 @@ def find_top_relevant_texts(
         if len(relevant_texts) < min_num_excerpts:
             j=0
             sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
-            while len(relevant_texts) < min_num_excerpts:
+            max_j = len(sorted_embeddings)
+            while len(relevant_texts) < min_num_excerpts and j < max_j:
                 emb_i = sorted_embeddings[j][0]
                 if emb_i not in indeces:
                     relevant_texts.append(pdf_text_chunks_w_embeddings[emb_i])

@@ -2,15 +2,7 @@ from analysis import get_analyzer, get_task_types
 from formatter import get_formatter_type_with_labels
 from server_env import get_apikey_ids, get_secret
 import re
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import (
-    Mail,
-    Attachment,
-    FileContent,
-    FileName,
-    FileType,
-    Disposition,
-)
+import resend
 from tempfile import NamedTemporaryFile
 import base64
 import json
@@ -529,27 +521,52 @@ def build_interface(tmp_dir):
     input_email()
 
 
-def email_results(output_file_contents, recipient_email):
-    message = Mail(
-        from_email=get_secret("email"),
-        to_emails=recipient_email,
-        subject="Results: GPT Batch Policy Processor (Beta)",
-        html_content="Attached is the document you requested.",
-    )
-    encoded_output_file = base64.b64encode(output_file_contents).decode()
-    message.attachment = Attachment(
-        FileContent(encoded_output_file),
-        FileName("results.xlsx"),
-        FileType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-        Disposition("attachment"),
-    )
+# def email_results(output_file_contents, recipient_email):
+#     message = Mail(
+#         from_email=get_secret("email"),
+#         to_emails=recipient_email,
+#         subject="Results: GPT Batch Policy Processor (Beta)",
+#         html_content="Attached is the document you requested.",
+#     )
+#     encoded_output_file = base64.b64encode(output_file_contents).decode()
+#     message.attachment = Attachment(
+#         FileContent(encoded_output_file),
+#         FileName("results.xlsx"),
+#         FileType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+#         Disposition("attachment"),
+#     )
+#     try:
+#         sg = SendGridAPIClient(get_secret("sendgrid_apikey"))
+#         response = sg.send(message)
+#         print("Email sent, status code:", response.status_code)
+#     except Exception as e:
+#         print("Error sending email:", e)
+#         print(e.message)
+
+
+def email_results(output_file_contents: bytes, recipient_email: str):
+    # if you use your own secrets helper, swap this line:
+    resend.api_key = get_secret("resend_apikey")
+
+    # Base64-encode the attachment content (Resend expects this for local files)
+    encoded = base64.b64encode(output_file_contents).decode("utf-8")
     try:
-        sg = SendGridAPIClient(get_secret("sendgrid_apikey"))
-        response = sg.send(message)
-        print("Email sent, status code:", response.status_code)
+        resp = resend.Emails.send({
+            "from": get_secret("email"),
+            "to": [recipient_email],
+            "subject": "Results: GPT Batch Policy Processor (Beta)",
+            "html": "Attached is the document you requested.",
+            "attachments": [
+                {
+                    "filename": "results.xlsx",
+                    "content": encoded,
+                    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                }
+            ],
+        })
+        print("Email sent, id:", resp.get("id"))
     except Exception as e:
         print("Error sending email:", e)
-        print(e.message)
 
 
 def get_user_inputs():

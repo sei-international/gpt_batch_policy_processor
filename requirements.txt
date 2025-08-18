@@ -5,7 +5,7 @@ pymupdf
 pymupdf4llm
 python-docx
 requests
+resend
 segtok
-sendgrid
 streamlit
 tiktoken

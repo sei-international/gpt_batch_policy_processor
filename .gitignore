@@ -10,3 +10,4 @@ embeddings_cache/
 .devcontainer/devcontainer.json
 .venv/
 archive/
+venv/

@@ -30,7 +30,7 @@ def generate_embedding(openai_client, text):
 
 
 def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
-    embeddings_model, token_limit = "text-embedding-3-small", 7000
+    embeddings_model, token_limit = "text-embedding-3-small", 6000
     cache_fname = get_cache_fname(pdf_path, path_fxn)
     if os.path.exists(cache_fname):
         with open(cache_fname, "r", encoding="utf-8") as f:
@@ -56,7 +56,15 @@ def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
 
         embeddings = []
         for batch in batches:
-            response = generate_embeddings(openai_client, batch, embeddings_model)
+            try:
+                response = generate_embeddings(openai_client, batch, embeddings_model)
+            except Exception as e:
+                try:
+                    for text in batch:
+                        response = generate_embedding(openai_client, text)
+                        embeddings.append(response)
+                except Exception as e2:
+                    print(f"Error generating embeddings for batch: {e}, {e2}")
             embeddings.extend([r.embedding for r in response.data])
 
         for i in range(len(text_chunks)):
@@ -96,6 +104,8 @@ def cosine_similarity(a, b):
 def find_top_relevant_texts(
     pdf_text_chunks_w_embeddings, var_embedding, min_num_excerpts, var_name
 ):
+    if not pdf_text_chunks_w_embeddings:
+        return []
     relevant_texts = []
     indeces = set()
     similarity_scores = []
@@ -116,7 +126,8 @@ def find_top_relevant_texts(
         if len(relevant_texts) < min_num_excerpts:
             j=0
             sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
-            while len(relevant_texts) < min_num_excerpts:
+            max_j = len(sorted_embeddings)
+            while len(relevant_texts) < min_num_excerpts and j < max_j:
                 emb_i = sorted_embeddings[j][0]
                 if emb_i not in indeces:
                     relevant_texts.append(pdf_text_chunks_w_embeddings[emb_i])

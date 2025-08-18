@@ -223,7 +223,7 @@ def main(gpt_analyzer, openai_apikey):
                 continue
             num_pages_in_pdf = 0
             num_sections = len(text_sections)
-            ## Most PDFs will only have 1 text_section: this is used to break up long documents (>250 pages)            
+            # Most PDFs will only have 1 text_section: this is used to break up long documents (>250 pages)            
             for text_section in text_sections:
                 text_chunks, num_pages, char_count, section = [
                     text_section[k]
@@ -304,7 +304,7 @@ def log_error(e, gpt_analyzer):
     msg = f"{e}\n{traceback.format_exc()}\n"
     if gpt_analyzer:
         partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
-        msg = msg + f"ERROR --> {gpt_analyzer}\n"
+        msg = msg + f"ERROR: {e} --> {gpt_analyzer}\n"
     st.error(f"Error generating output document: {e}")
     log(
         f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {msg}"

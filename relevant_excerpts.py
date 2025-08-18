@@ -30,7 +30,7 @@ def generate_embedding(openai_client, text):
 
 
 def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
-    embeddings_model, token_limit = "text-embedding-3-small", 7000
+    embeddings_model, token_limit = "text-embedding-3-small", 6000
     cache_fname = get_cache_fname(pdf_path, path_fxn)
     if os.path.exists(cache_fname):
         with open(cache_fname, "r", encoding="utf-8") as f:
@@ -56,7 +56,15 @@ def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
 
         embeddings = []
         for batch in batches:
-            response = generate_embeddings(openai_client, batch, embeddings_model)
+            try:
+                response = generate_embeddings(openai_client, batch, embeddings_model)
+            except Exception as e:
+                try:
+                    for text in batch:
+                        response = generate_embedding(openai_client, text)
+                        embeddings.append(response)
+                except Exception as e2:
+                    print(f"Error generating embeddings for batch: {e}, {e2}")
             embeddings.extend([r.embedding for r in response.data])
 
         for i in range(len(text_chunks)):

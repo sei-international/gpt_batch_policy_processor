@@ -117,12 +117,14 @@ def find_top_relevant_texts(
     relevant_texts = []
     indeces = set()
     similarity_scores = []
+    total_excerpt_num_chars = 0
     for i in range(len(pdf_text_chunks_w_embeddings)):
         text_chunk_dict = pdf_text_chunks_w_embeddings[i]
         txt, txt_embs = [text_chunk_dict[k] for k in ["text_chunk", "embedding"]]
         if var_name in txt:
             indeces.add(i)
             relevant_texts.append(text_chunk_dict)
+            total_excerpt_num_chars +=len(text_chunk_dict["text_chunk"])
         similarity = cosine_similarity(var_embedding, txt_embs)
         similarity_scores.append((i, similarity))
     sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
@@ -132,6 +134,9 @@ def find_top_relevant_texts(
             if sim_score[1] > 0.7:
                 relevant_texts.append(pdf_text_chunks_w_embeddings[i])
                 indeces.add(i)
+                total_excerpt_num_chars += len(pdf_text_chunks_w_embeddings[i]["text_chunk"])
+                if total_excerpt_num_chars > max_chars_for_excerpts:
+                    return relevant_texts
     if len(relevant_texts) < min_num_excerpts:
         j=0
         max_j = len(sorted_embeddings)

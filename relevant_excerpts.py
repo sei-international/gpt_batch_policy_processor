@@ -58,6 +58,7 @@ def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
         for batch in batches:
             try:
                 response = generate_embeddings(openai_client, batch, embeddings_model)
+                embeddings.extend([r.embedding for r in response.data])
             except Exception as e:
                 try:
                     for text in batch:
@@ -65,7 +66,6 @@ def generate_all_embeddings(openai_client, pdf_path, text_chunks, path_fxn):
                         embeddings.append(response)
                 except Exception as e2:
                     print(f"Error generating embeddings for batch: {e}, {e2}")
-            embeddings.extend([r.embedding for r in response.data])
 
         for i in range(len(text_chunks)):
             text_chunks[i]["embedding"] = embeddings[i]
@@ -102,35 +102,48 @@ def cosine_similarity(a, b):
 
 
 def find_top_relevant_texts(
-    pdf_text_chunks_w_embeddings, var_embedding, min_num_excerpts, var_name
+    pdf_text_chunks_w_embeddings, var_embedding, min_num_excerpts, var_name, gpt_model
 ):
     if not pdf_text_chunks_w_embeddings:
         return []
+    max_tokens_per_model = {
+        "gpt-4.1": 1047576,
+        "gpt-5": 400000,
+        "o4-mini": 200000, 
+        "o3": 200000,
+    }  
+    max_chars_total = max_tokens_per_model[gpt_model]  * 4
+    max_chars_for_excerpts = max_chars_total - 20000
     relevant_texts = []
     indeces = set()
     similarity_scores = []
+    total_excerpt_num_chars = 0
     for i in range(len(pdf_text_chunks_w_embeddings)):
         text_chunk_dict = pdf_text_chunks_w_embeddings[i]
         txt, txt_embs = [text_chunk_dict[k] for k in ["text_chunk", "embedding"]]
         if var_name in txt:
             indeces.add(i)
             relevant_texts.append(text_chunk_dict)
+            total_excerpt_num_chars +=len(text_chunk_dict["text_chunk"])
         similarity = cosine_similarity(var_embedding, txt_embs)
         similarity_scores.append((i, similarity))
-    for sim_score in similarity_scores:
+    sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
+    for sim_score in sorted_embeddings:
         i = sim_score[0]
         if i not in indeces:
             if sim_score[1] > 0.7:
                 relevant_texts.append(pdf_text_chunks_w_embeddings[i])
                 indeces.add(i)
-        if len(relevant_texts) < min_num_excerpts:
-            j=0
-            sorted_embeddings = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
-            max_j = len(sorted_embeddings)
-            while len(relevant_texts) < min_num_excerpts and j < max_j:
-                emb_i = sorted_embeddings[j][0]
-                if emb_i not in indeces:
-                    relevant_texts.append(pdf_text_chunks_w_embeddings[emb_i])
-                    indeces.add(emb_i)
-                j+=1
+                total_excerpt_num_chars += len(pdf_text_chunks_w_embeddings[i]["text_chunk"])
+                if total_excerpt_num_chars > max_chars_for_excerpts:
+                    return relevant_texts
+    if len(relevant_texts) < min_num_excerpts:
+        j=0
+        max_j = len(sorted_embeddings)
+        while len(relevant_texts) < min_num_excerpts and j < max_j:
+            emb_i = sorted_embeddings[j][0]
+            if emb_i not in indeces:
+                relevant_texts.append(pdf_text_chunks_w_embeddings[emb_i])
+                indeces.add(emb_i)
+            j+=1
     return relevant_texts

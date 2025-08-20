@@ -104,6 +104,7 @@ def extract_policy_doc_info(
                 var_embedding,
                 num_excerpts,
                 var_name,
+                gpt_analyzer.gpt_model
             )
             #text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
             if gpt_analyzer.organize_text_chunks_by_section is True:

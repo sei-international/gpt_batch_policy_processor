@@ -9,6 +9,7 @@ def get_apikey_ids():
         get_secret("access_password_adis"): "openai_apikey_adis",
         get_secret("access_password_urbanadaptation"): "openai_apikey_adaptation",
         get_secret("access_password_bb"): "openai_apikey_bb",
+        get_secret("access_password_leadit"): "openai_apikey_leadit",
     }
 
 def get_secret(k):

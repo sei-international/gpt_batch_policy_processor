@@ -1,20 +1,16 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
+# .github/workflows/deploy.yml
 name: Build and deploy Python app to Azure Web App - AI-Policy-Reader
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -28,104 +24,54 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
-      
+
       - name: Install dependencies
         run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
+      # Zip app for deployment (exclude venv/.git/.github)
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: zip -r release.zip . -x "venv/*" ".git/*" ".github/*"
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
-            !venv/
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: python-app
+          path: .
 
       - name: Unzip artifact for deployment
-        run: unzip release.zip
+        run: unzip -o release.zip
 
-      
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F5C9E61ED8594C58A36016E4157B8AB3 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FF78FBEBF99144D3814805CF42777CAE }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F9B7B0930F64E17A777E5CA01CE15C2 }}
+
+      # <<< Add wait right before deploy >>>
       - name: Wait for Kudu/SCM to settle
         run: |
           echo "SCM sometimes restarts; waiting 45s to avoid deployment race…"
           sleep 45
-      - name: 'Deploy to Azure Web App'
+
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
         with:
           app-name: 'AI-Policy-Reader'
           slot-name: 'Production'
-          deploy:
-  runs-on: ubuntu-latest
-  needs: build
-  permissions:
-    id-token: write
-    contents: read
-
-  steps:
-    - name: Download artifact from build job
-      uses: actions/download-artifact@v4
-      with:
-        name: python-app
-
-    - name: Unzip artifact for deployment
-      run: unzip release.zip
-
-    - name: Login to Azure
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F5C9E61ED8594C58A36016E4157B8AB3 }}
-        tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FF78FBEBF99144D3814805CF42777CAE }}
-        subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F9B7B0930F64E17A777E5CA01CE15C2 }}
-
-    # >>> ADD THIS STEP <<<
-    - name: Wait for Kudu/SCM to settle
-      run: |
-        echo "SCM can restart after management ops; waiting 45s to avoid deployment race…"
-        sleep 45
-
-    # First attempt (don’t fail the job yet)
-    - name: Deploy to Azure Web App (try 1)
-      id: deploy1
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: 'AI-Policy-Reader'
-        slot-name: 'Production'
-      continue-on-error: true
-
-    # Backoff + retry only if needed
-    - name: Backoff before retry
-      if: steps.deploy1.outcome == 'failure'
-      run: |
-        echo "First deploy failed; backing off 45s before retry…"
-        sleep 45
-
-    - name: Deploy to Azure Web App (try 2)
-      if: steps.deploy1.outcome == 'failure'
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: 'AI-Policy-Reader'
-        slot-name: 'Production'
+          # (optional) to deploy the zip directly, add:
+          # package: release.zip

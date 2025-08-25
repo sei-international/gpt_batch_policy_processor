@@ -42,8 +42,6 @@ from relevant_excerpts import (
 )
 from results import format_output_doc, get_output_fname, output_results, output_metrics
 from server_env import get_secret
-
-from pathlib import Path
 from openpyxl import Workbook
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -415,27 +413,6 @@ if __name__ == "__main__":
                                     st.error("Result file missing.")
                             elif status == "error":
                                 st.error((error_file.read_text() if error_file.exists() else "(no message)"))
-                    # if st.button("Run", disabled=st.session_state.get("run_disabled", False)):                 
-                    #     gpt_analyzer = get_user_inputs()
-                    #     try:
-                    #         with st.spinner("Generating output document..."):
-                    #             apikey_id = "openai_apikey"
-                    #             if "apikey_id" in st.session_state:
-                    #                 apikey_id = st.session_state["apikey_id"]
-                    #             openai_apikey = get_secret(apikey_id)
-                    #             num_pages, output_doc, e = main(gpt_analyzer, openai_apikey)
-                    #             if e is not None:
-                    #                 log_error(e, gpt_analyzer)
-                    #                 sys.exit(1)
-                    #             partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
-                    #             log(
-                    #                 f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
-                    #             )
-                    #         st.success("Document generated!")
-                    #         if "temp_zip_path" in st.session_state:
-                    #             os.unlink(st.session_state["temp_zip_path"])
-                    #     except Exception as e:
-                    #         log_error(e, gpt_analyzer)
                 with tab2:
                     about_tab()
                 with tab3:

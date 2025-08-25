@@ -69,9 +69,9 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FF78FBEBF99144D3814805CF42777CAE }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F9B7B0930F64E17A777E5CA01CE15C2 }}
       - name: Wait for Kudu/SCM to settle
-              run: |
-                echo "SCM sometimes restarts; waiting 45s to avoid deployment race…"
-                sleep 45
+        run: |
+          echo "SCM sometimes restarts; waiting 45s to avoid deployment race…"
+          sleep 45
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp

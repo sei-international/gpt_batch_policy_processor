@@ -1,3 +1,2 @@
 [config]
 SCM_DO_BUILD_DURING_DEPLOYMENT = true
-POST_BUILD_COMMAND = cd /home/site/wwwroot && if [ -f output.tar.gz ]; then tar -xzf output.tar.gz --strip-components=0 -C /home/site/wwwroot; fi

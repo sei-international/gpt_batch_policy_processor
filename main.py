@@ -21,7 +21,7 @@ Functions:
 - main: Main function to process PDFs and generate an output document.
 
 Usage:
-Run "python -m streamlit run .\main.py" to start the Streamlit application.
+Run "python -m streamlit run main.py" to start the Streamlit application.
 """
 
 from interface import (
@@ -345,7 +345,6 @@ if __name__ == "__main__":
                         job_id = uuid.uuid4().hex
                         job_dir = JOBS_ROOT / job_id
                         job_dir.mkdir(parents=True, exist_ok=True)
-
                         # quick metadata + initial status
                         (job_dir / "meta.json").write_text(json.dumps({
                             "created": time.time(),
@@ -381,8 +380,11 @@ if __name__ == "__main__":
                         if openai_apikey:
                             env["OPENAI_API_KEY"] = openai_apikey
                         log = open(job_dir / "worker.log", "a")
+                        # Use virtual environment Python if available
+                        venv_python = Path("/home/site/wwwroot/antenv/bin/python")
+                        python_exe = str(venv_python) if venv_python.exists() else sys.executable
                         proc = subprocess.Popen(
-                            [sys.executable, str(WORKER_PATH), "--job", str(job_dir)],
+                            [python_exe, str(WORKER_PATH), "--job", str(job_dir)],
                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env=env
                         )
                         log.close()

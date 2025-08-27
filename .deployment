@@ -1,3 +1,2 @@
 [config]
 SCM_DO_BUILD_DURING_DEPLOYMENT=true
-POST_BUILD_COMMAND=rm -f /home/site/wwwroot/output.tar.gz

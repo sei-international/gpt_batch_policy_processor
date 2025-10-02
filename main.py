@@ -43,7 +43,6 @@ from relevant_excerpts import (
 from results import format_output_doc, get_output_fname, output_results, output_metrics
 from server_env import get_secret
 from openpyxl import Workbook
-from pathlib import Path
 from tempfile import TemporaryDirectory
 import io
 import json
@@ -53,11 +52,6 @@ import streamlit as st
 import sys
 import time
 import traceback 
-import subprocess, pickle, uuid, shutil, copy
-
-JOBS_ROOT = Path(os.environ.get("JOBS_ROOT", Path.home() / "site" / "jobs"))
-JOBS_ROOT.mkdir(parents=True, exist_ok=True)  # Azure App Service: /home/site/jobs
-WORKER_PATH = Path(__file__).parent / "worker.py"
 
 
 def get_resource_path(relative_path):
@@ -298,7 +292,7 @@ def main(gpt_analyzer, openai_apikey):
     output_doc.save(buffer)
     buffer.seek(0)
     output_file_contents = buffer.read()
-    #email_results(output_file_contents, gpt_analyzer.email)
+    email_results(output_file_contents, gpt_analyzer.email)
     buffer.seek(0)
     output_file_contents = buffer.read()
     display_output(output_file_contents)
@@ -330,91 +324,27 @@ if __name__ == "__main__":
                 tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
                 with tab1:
                     build_interface(temp_dir)
-
-
-                    st.markdown("### Run")
-                    if st.button("Run (background)", disabled=st.session_state.get("run_disabled", False)):
+                    if st.button("Run", disabled=st.session_state.get("run_disabled", False)):                 
                         gpt_analyzer = get_user_inputs()
                         try:
-                            apikey_id = st.session_state.get("apikey_id", "openai_apikey")
-                            openai_apikey = get_secret(apikey_id)
+                            with st.spinner("Generating output document..."):
+                                apikey_id = "openai_apikey"
+                                if "apikey_id" in st.session_state:
+                                    apikey_id = st.session_state["apikey_id"]
+                                openai_apikey = get_secret(apikey_id)
+                                num_pages, output_doc, e = main(gpt_analyzer, openai_apikey)
+                                if e is not None:
+                                    log_error(e, gpt_analyzer)
+                                    sys.exit(1)
+                                partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
+                                log(
+                                    f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
+                                )
+                            st.success("Document generated!")
+                            if "temp_zip_path" in st.session_state:
+                                os.unlink(st.session_state["temp_zip_path"])
                         except Exception as e:
-                            st.error(f"Failed to get API key: {e}")
-                            openai_apikey = None
-
-                        job_id = uuid.uuid4().hex
-                        job_dir = JOBS_ROOT / job_id
-                        job_dir.mkdir(parents=True, exist_ok=True)
-                        # quick metadata + initial status
-                        (job_dir / "meta.json").write_text(json.dumps({
-                            "created": time.time(),
-                            "email": getattr(gpt_analyzer, 'email', None)
-                        }))
-                        (job_dir / "status.txt").write_text("queued")
-
-                        # copy PDFs into job folder (so worker has stable local inputs)
-                        inputs_dir = job_dir / "inputs"
-                        inputs_dir.mkdir(exist_ok=True)
-                        copied_pdfs = []
-                        for pdf in getattr(gpt_analyzer, 'pdfs', []) or []:
-                            try:
-                                if os.path.exists(pdf):
-                                    dst = inputs_dir / Path(pdf).name
-                                    shutil.copy2(pdf, dst)
-                                    copied_pdfs.append(str(dst))
-                                else:
-                                    copied_pdfs.append(pdf)  # keep as-is if not a local path
-                            except Exception:
-                                copied_pdfs.append(pdf)
-
-                        # shallow-copy analyzer and swap in copied PDF paths
-                        local_analyzer = copy.copy(gpt_analyzer)
-                        local_analyzer.pdfs = copied_pdfs
-
-                        # pickle analyzer for the worker
-                        with open(job_dir / "analyzer.pkl", "wb") as f:
-                            pickle.dump(local_analyzer, f)
-
-                        # launch worker
-                        env = dict(os.environ)
-                        if openai_apikey:
-                            env["OPENAI_API_KEY"] = openai_apikey
-                        log = open(job_dir / "worker.log", "a")
-                        # Use virtual environment Python if available
-                        venv_python = Path("/home/site/wwwroot/antenv/bin/python")
-                        python_exe = str(venv_python) if venv_python.exists() else sys.executable
-                        proc = subprocess.Popen(
-                            [python_exe, str(WORKER_PATH), "--job", str(job_dir)],
-                            stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env=env
-                        )
-                        log.close()
-                        st.success(f"Job started: {job_id}")
-                        st.warning("Copy and save the job id. Check job status below.", icon="⚠️")
-
-                    # ---- Simple polling UI ----
-                    st.markdown("##### Check job status")
-                    job_to_check = st.text_input("Job id to check")
-                    if st.button("Check job") and job_to_check:
-                        jdir = JOBS_ROOT / job_to_check
-                        if not jdir.exists():
-                            st.info("Job not found or not started yet.")
-                        else:
-                            status_file  = jdir / "status.txt"
-                            result_file  = jdir / "result.xlsx"
-                            error_file   = jdir / "error.txt"
-                            status = status_file.read_text() if status_file.exists() else "unknown"
-                            st.write(f"Status: {status}")
-                            if status == "done":
-                                if result_file.exists():
-                                    st.download_button(
-                                        "Download result (xlsx)",
-                                        result_file.read_bytes(),
-                                        file_name=f"result_{job_to_check}.xlsx"
-                                    )
-                                else:
-                                    st.error("Result file missing.")
-                            elif status == "error":
-                                st.error((error_file.read_text() if error_file.exists() else "(no message)"))
+                            log_error(e, gpt_analyzer)
                 with tab2:
                     about_tab()
                 with tab3:

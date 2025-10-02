@@ -21,7 +21,7 @@ Functions:
 - main: Main function to process PDFs and generate an output document.
 
 Usage:
-Run "python -m streamlit run .\main.py" to start the Streamlit application.
+Run "python -m streamlit run main.py" to start the Streamlit application.
 """
 
 from interface import (

@@ -11,3 +11,4 @@ embeddings_cache/
 .venv/
 archive/
 venv/
+node_modules/

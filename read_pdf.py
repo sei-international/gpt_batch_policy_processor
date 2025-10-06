@@ -13,7 +13,7 @@ def pdf_to_markdown(pdf_path: str, max_toc_levels: int = 6):
     except Exception:
         headers = pymupdf4llm.IdentifyHeaders(doc, max_levels=max_toc_levels)
         print("No TOC found – falling back to font-based header identification.")
-    
+
     return headers, pymupdf4llm.to_markdown(
         doc,
         page_chunks=True,

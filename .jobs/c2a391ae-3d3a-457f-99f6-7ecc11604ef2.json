@@ -1,0 +1,20 @@
+{
+  "job_id": "c2a391ae-3d3a-457f-99f6-7ecc11604ef2",
+  "status": "completed",
+  "created_at": "2025-10-06T20:44:23.388629",
+  "updated_at": "2025-10-06T20:46:11.480000",
+  "progress": {
+    "current_pdf": 1,
+    "total_pdfs": 1,
+    "current_variable": 2,
+    "total_variables": 2,
+    "message": "Finalizing output document and sending email..."
+  },
+  "result": {
+    "total_num_pages": 74,
+    "output_file_size": 9505,
+    "num_pdfs": 1,
+    "failed_pdfs": []
+  },
+  "error": null
+}

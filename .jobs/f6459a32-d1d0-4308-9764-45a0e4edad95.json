@@ -1,0 +1,21 @@
+{
+  "job_id": "f6459a32-d1d0-4308-9764-45a0e4edad95",
+  "status": "completed",
+  "created_at": "2025-10-06T21:07:17.198343",
+  "updated_at": "2025-10-06T21:08:28.678281",
+  "progress": {
+    "current_pdf": 2,
+    "total_pdfs": 2,
+    "current_variable": 2,
+    "total_variables": 2,
+    "message": "Finalizing output document and sending email..."
+  },
+  "result": {
+    "total_num_pages": 166,
+    "output_file_size_mb": 0.01,
+    "num_pdfs": 2,
+    "failed_pdfs": [],
+    "email_sent_to": "william.babis@sei.org"
+  },
+  "error": null
+}

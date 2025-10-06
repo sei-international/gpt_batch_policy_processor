@@ -25,19 +25,12 @@ def create_gpt_messages(query, run_on_full_text):
 
 
 def chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs):
-    if gpt_model == "gpt-4.1":
-        response = gpt_client.chat.completions.create(
-            model=gpt_model,
-            temperature=0,
-            response_format={"type": resp_fmt},
-            messages=msgs,
-        )
-    else:
-        response = gpt_client.chat.completions.create(
-            model=gpt_model,
-            response_format={"type": resp_fmt},
-            messages=msgs,
-        )
+    response = gpt_client.chat.completions.create(
+        model=gpt_model,
+        temperature=0,
+        response_format={"type": resp_fmt},
+        messages=msgs,
+    )
     return response.choices[0].message.content
 
 
@@ -59,7 +52,7 @@ def query_gpt_for_variable_specification(
     relevant_excerpts,
     run_on_full_text,
     gpt_client,
-    gpt_model="4.1",
+    gpt_model="gpt-4o",
 ):
     query_template = gpt_analyzer.main_query
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=var_spec, context=context)} \n\n"

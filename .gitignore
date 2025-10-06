@@ -12,3 +12,4 @@ embeddings_cache/
 archive/
 venv/
 node_modules/
+.jobs/

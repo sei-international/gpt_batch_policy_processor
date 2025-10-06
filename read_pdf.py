@@ -4,6 +4,11 @@ import pymupdf4llm
 import re
 
 def pdf_to_markdown(pdf_path: str, max_toc_levels: int = 6):
+    import warnings
+
+    # Suppress MuPDF warnings about corrupted images - we only need text
+    warnings.filterwarnings('ignore', category=UserWarning, module='pymupdf')
+
     doc = pymupdf.open(pdf_path)
     try:
         headers = pymupdf4llm.TocHeaders(doc, max_levels=max_toc_levels)
@@ -14,11 +19,21 @@ def pdf_to_markdown(pdf_path: str, max_toc_levels: int = 6):
         headers = pymupdf4llm.IdentifyHeaders(doc, max_levels=max_toc_levels)
         print("No TOC found – falling back to font-based header identification.")
 
-    return headers, pymupdf4llm.to_markdown(
-        doc,
-        page_chunks=True,
-        hdr_info=headers
-    )
+    try:
+        return headers, pymupdf4llm.to_markdown(
+            doc,
+            page_chunks=True,
+            hdr_info=headers
+        )
+    except Exception as e:
+        # If markdown conversion fails due to image issues, try without page chunks
+        print(f"Warning: Error during markdown conversion: {e}")
+        print("Retrying with simpler conversion...")
+        try:
+            return headers, pymupdf4llm.to_markdown(doc, hdr_info=headers, page_chunks=True)
+        except Exception as e2:
+            print(f"Second attempt also failed: {e2}")
+            raise
 
 
 def add_text_chunks(text_chunks_tmp, curr_chunk, curr_page_nums, headers, sentence, page_num):
@@ -52,6 +67,7 @@ def extract_text_chunks_from_pdf(pdf_path, max_chunk_size):
     text_chunks = []
     curr_chunk = ""
     total_char_count = 0
+    doc_title = None
     try:
         # Open the PDF file
         headers, doc_md = pdf_to_markdown(pdf_path)

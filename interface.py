@@ -1,5 +1,6 @@
 from analysis import get_analyzer, get_task_types
 from formatter import get_formatter_type_with_labels
+from results import split_workbook_by_sheets
 from server_env import get_apikey_ids, get_secret
 import re
 import resend
@@ -465,9 +466,10 @@ def is_valid_email(email):
 
 def select_gpt_model():
     if "gpt_model" not in st.session_state:
-        st.session_state["gpt_model"] = "gpt-4o"  # Default model
+        st.session_state["gpt_model"] = "gpt-4.1"  # Default model
     model_options = {
-        "gpt-4o": "GPT-4o (recommended - fast and capable)",
+        "gpt-4.1": "GPT-4.1 (recommended - fast)",
+        "gpt-4o": "GPT-4o (fast and capable)",
         "gpt-4o-mini": "GPT-4o mini (faster, cheaper)",
         "gpt-4-turbo": "GPT-4 Turbo",
         "gpt-3.5-turbo": "GPT-3.5 Turbo (fastest, cheapest)",
@@ -534,100 +536,6 @@ def check_file_size(file_contents: bytes):
     # Use 25 MB threshold (Resend limit is 40 MB, leaves buffer)
     is_too_large = encoded_size_mb > 25
     return size_mb, encoded_size_mb, is_too_large
-
-
-def split_workbook_by_sheets(workbook_bytes: bytes, max_size_mb=25):
-    """
-    Split an Excel workbook into multiple smaller workbooks by sheets.
-
-    Args:
-        workbook_bytes: Original workbook as bytes
-        max_size_mb: Target max size for each split file
-
-    Returns:
-        list: List of tuples (workbook_bytes, sheet_range_description)
-
-    If splitting fails, returns original workbook with warning message.
-    """
-    from openpyxl import load_workbook
-    from io import BytesIO
-
-    try:
-        # Load the original workbook
-        original_wb = load_workbook(BytesIO(workbook_bytes))
-        total_sheets = len(original_wb.sheetnames)
-
-        # If only 1-2 sheets, can't split meaningfully
-        if total_sheets <= 2:
-            print(f"Only {total_sheets} sheet(s), cannot split further")
-            return [(workbook_bytes, "complete (too large for email, but sending anyway)")]
-
-        # Estimate sheets per file (rough heuristic)
-        # Start with half the sheets and adjust if needed
-        sheets_per_file = max(1, total_sheets // 2)
-        split_workbooks = []
-
-        sheet_idx = 0
-        part_num = 1
-
-        while sheet_idx < total_sheets:
-            # Create new workbook for this part
-            new_wb = openpyxl.Workbook()
-            new_wb.remove(new_wb.active)  # Remove default sheet
-
-            # Copy sheets to new workbook
-            end_idx = min(sheet_idx + sheets_per_file, total_sheets)
-            sheet_names = []
-
-            for i in range(sheet_idx, end_idx):
-                source_sheet = original_wb[original_wb.sheetnames[i]]
-                target_sheet = new_wb.create_sheet(source_sheet.title)
-
-                # Copy all cells (simple copy, may not preserve all formatting)
-                for row in source_sheet.iter_rows():
-                    for cell in row:
-                        target_cell = target_sheet[cell.coordinate]
-                        target_cell.value = cell.value
-                        if cell.has_style:
-                            target_cell.font = cell.font.copy()
-                            target_cell.border = cell.border.copy()
-                            target_cell.fill = cell.fill.copy()
-                            target_cell.number_format = cell.number_format
-                            target_cell.protection = cell.protection.copy()
-                            target_cell.alignment = cell.alignment.copy()
-
-                sheet_names.append(source_sheet.title)
-
-            # Save to bytes
-            buffer = BytesIO()
-            new_wb.save(buffer)
-            buffer.seek(0)
-            part_bytes = buffer.read()
-
-            # Create description
-            if len(sheet_names) == 1:
-                description = f"sheet: {sheet_names[0]}"
-            else:
-                description = f"sheets: {sheet_names[0]} to {sheet_names[-1]}"
-
-            split_workbooks.append((part_bytes, description))
-
-            sheet_idx = end_idx
-            part_num += 1
-
-            # Safety: Don't create more than 10 files
-            if part_num > 10:
-                print(f"WARNING: Would create more than 10 files, stopping split")
-                break
-
-        return split_workbooks
-
-    except Exception as e:
-        print(f"Error splitting workbook: {e}")
-        import traceback
-        traceback.print_exc()
-        # Return original with error note
-        return [(workbook_bytes, "complete (splitting failed, sending as-is)")]
 
 
 def send_single_email(file_contents: bytes, recipient_email: str, filename="results.xlsx", subject_suffix=""):

@@ -126,7 +126,7 @@ def get_task_types():
 
 
 def get_analyzer(
-    task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info, gpt_model="o4-mini"
+    task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info, gpt_model="gpt-4.1"
 ):
     """
     Returns an instance of the appropriate analyzer class based on the task type.

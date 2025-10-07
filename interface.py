@@ -1,5 +1,6 @@
 from analysis import get_analyzer, get_task_types
 from formatter import get_formatter_type_with_labels
+from results import split_workbook_by_sheets
 from server_env import get_apikey_ids, get_secret
 import re
 import resend
@@ -465,13 +466,14 @@ def is_valid_email(email):
 
 def select_gpt_model():
     if "gpt_model" not in st.session_state:
-        st.session_state["gpt_model"] = "4.1"  # Default model
+        st.session_state["gpt_model"] = "gpt-4.1"  # Default model
     model_options = {
-        "gpt-4.1": "4.1",
-        "gpt-5": "5 (recommended by OpenAI)",
-        "o4-mini": "o4-mini", 
-        "o3": "o3 (slower, smarter, more expensive)",
-    }  
+        "gpt-4.1": "GPT-4.1 (recommended - fast)",
+        "gpt-4o": "GPT-4o (fast and capable)",
+        "gpt-4o-mini": "GPT-4o mini (faster, cheaper)",
+        "gpt-4-turbo": "GPT-4 Turbo",
+        "gpt-3.5-turbo": "GPT-3.5 Turbo (fastest, cheapest)",
+    }
     st.session_state["gpt_model"] = st.selectbox(
         "Select the OpenAI model to use for processing:",
         options=list(model_options.keys()),
@@ -520,30 +522,138 @@ def build_interface(tmp_dir):
     select_gpt_model()
     input_email()
 
-def email_results(output_file_contents: bytes, recipient_email: str):
-    # if you use your own secrets helper, swap this line:
-    resend.api_key = get_secret("resend_apikey")
+def check_file_size(file_contents: bytes):
+    """
+    Check file size and estimate encoded size.
 
-    # Base64-encode the attachment content (Resend expects this for local files)
-    encoded = base64.b64encode(output_file_contents).decode("utf-8")
+    Returns:
+        tuple: (size_mb, encoded_size_mb, is_too_large)
+    """
+    size_bytes = len(file_contents)
+    size_mb = size_bytes / (1024 * 1024)
+    # Base64 encoding increases size by ~33%
+    encoded_size_mb = size_mb * 1.33
+    # Use 25 MB threshold (Resend limit is 40 MB, leaves buffer)
+    is_too_large = encoded_size_mb > 25
+    return size_mb, encoded_size_mb, is_too_large
+
+
+def send_single_email(file_contents: bytes, recipient_email: str, filename="results.xlsx", subject_suffix=""):
+    """
+    Send a single email with attachment.
+
+    Returns:
+        tuple: (success: bool, error_message: str or None)
+    """
+    resend.api_key = get_secret("resend_apikey")
+    encoded = base64.b64encode(file_contents).decode("utf-8")
+
     try:
         resp = resend.Emails.send({
             "from": get_secret("email"),
             "to": [recipient_email],
-            "subject": "Results: GPT Batch Policy Processor (Beta)",
+            "subject": f"Results: GPT Batch Policy Processor (Beta){subject_suffix}",
             "html": "Attached is the document you requested.",
             "attachments": [
                 {
-                    "filename": "results.xlsx",
+                    "filename": filename,
                     "content": encoded,
                     "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 }
             ],
         })
-        print(resp)
-        print("Email sent, id:", resp.get("id"))
+        print(f"Email sent successfully, id: {resp.get('id')}")
+        return True, None
     except Exception as e:
-        print("Error sending email:", e)
+        error_msg = str(e)
+        print(f"Error sending email: {error_msg}")
+        return False, error_msg
+
+
+def email_results(output_file_contents: bytes, recipient_email: str):
+    """
+    Email results to user. Handles large files by splitting if needed.
+    Priority: Ensure user receives SOMETHING even if full data can't be sent.
+    """
+    print(f"Preparing to email results to {recipient_email}")
+
+    # Check file size
+    size_mb, encoded_size_mb, is_too_large = check_file_size(output_file_contents)
+    print(f"File size: {size_mb:.2f} MB (encoded: {encoded_size_mb:.2f} MB)")
+
+    if not is_too_large:
+        # Simple case: file is small enough, send as-is
+        print("File is within size limit, sending single email")
+        success, error = send_single_email(output_file_contents, recipient_email)
+        if not success:
+            print(f"CRITICAL: Failed to send email: {error}")
+            print("User will NOT receive results via email")
+        return
+
+    # File is too large - need to split
+    print(f"WARNING: File is too large ({encoded_size_mb:.2f} MB). Attempting to split...")
+
+    try:
+        # Attempt to split workbook
+        split_parts = split_workbook_by_sheets(output_file_contents)
+        total_parts = len(split_parts)
+
+        print(f"Split workbook into {total_parts} part(s)")
+
+        # Send each part
+        successful_parts = []
+        failed_parts = []
+
+        for part_num, (part_bytes, description) in enumerate(split_parts, 1):
+            part_size_mb, part_encoded_mb, part_too_large = check_file_size(part_bytes)
+
+            print(f"Part {part_num}/{total_parts} ({description}): {part_size_mb:.2f} MB")
+
+            if part_too_large:
+                print(f"WARNING: Part {part_num} is still too large ({part_encoded_mb:.2f} MB)")
+                # Try to send anyway - Resend will reject if truly too large
+
+            subject_suffix = f" - Part {part_num} of {total_parts}"
+            filename = f"results_part_{part_num}_of_{total_parts}.xlsx"
+
+            success, error = send_single_email(part_bytes, recipient_email, filename, subject_suffix)
+
+            if success:
+                successful_parts.append((part_num, description))
+                print(f"✓ Part {part_num} sent successfully")
+            else:
+                failed_parts.append((part_num, description, error))
+                print(f"✗ Part {part_num} FAILED: {error}")
+
+        # Summary
+        print(f"\n=== EMAIL SUMMARY ===")
+        print(f"Total parts: {total_parts}")
+        print(f"Successful: {len(successful_parts)}")
+        print(f"Failed: {len(failed_parts)}")
+
+        if successful_parts:
+            print(f"User will receive {len(successful_parts)} email(s) with partial results")
+
+        if failed_parts:
+            print(f"WARNING: {len(failed_parts)} part(s) failed to send:")
+            for part_num, desc, error in failed_parts:
+                print(f"  - Part {part_num} ({desc}): {error}")
+            print("User will NOT receive complete results")
+
+    except Exception as e:
+        # If splitting completely fails, try sending original file anyway
+        print(f"CRITICAL: Failed to split workbook: {e}")
+        import traceback
+        traceback.print_exc()
+
+        print("Attempting to send original file as fallback...")
+        success, error = send_single_email(output_file_contents, recipient_email)
+
+        if success:
+            print("Fallback successful: Original large file sent (may fail at Resend)")
+        else:
+            print(f"CRITICAL FAILURE: Cannot send email at all: {error}")
+            print("User will NOT receive any results via email")
 
 
 def get_user_inputs():

@@ -106,11 +106,15 @@ def find_top_relevant_texts(
 ):
     if not pdf_text_chunks_w_embeddings:
         return []
+
     max_tokens_per_model = {
         "gpt-4.1": 1047576,
         "gpt-5": 400000,
-        "o4-mini": 200000, 
+        "gpt-4o": 128000,
         "o3": 200000,
+        "gpt-4o-mini": 128000,
+        "gpt-4-turbo": 128000,
+        "gpt-3.5-turbo": 16385,
     }  
     max_chars_total = max_tokens_per_model[gpt_model]  * 4
     max_chars_for_excerpts = max_chars_total - 20000

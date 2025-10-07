@@ -40,7 +40,6 @@ def chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs):
         )
     return response.choices[0].message.content
 
-
 def fetch_variable_info(gpt_client, gpt_model, query, resp_fmt, run_on_full_text):
     msgs = create_gpt_messages(query, run_on_full_text)
     return chat_gpt_query(gpt_client, gpt_model, resp_fmt, msgs)
@@ -59,7 +58,7 @@ def query_gpt_for_variable_specification(
     relevant_excerpts,
     run_on_full_text,
     gpt_client,
-    gpt_model="4.1",
+    gpt_model="gpt-4.1",
 ):
     query_template = gpt_analyzer.main_query
     main_query = f"{query_template.format(variable_name=variable_name, variable_description=var_spec, context=context)} \n\n"

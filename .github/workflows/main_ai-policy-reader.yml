@@ -52,9 +52,6 @@ jobs:
           name: python-app
           path: .
 
-      - name: Unzip artifact for deployment
-        run: unzip -o release.zip
-
       - name: Login to Azure
         uses: azure/login@v2
         with:

@@ -71,7 +71,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'AI-Policy-Reader'
+          app-name: 'ai-policy-reader'
           slot-name: 'Production'
-          # (optional) to deploy the zip directly, add:
-          # package: release.zip
+          package: release.zip

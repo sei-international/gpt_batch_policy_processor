@@ -187,11 +187,38 @@ def estimate_run_cost(
 
 
 def format_money(amount):
-    """Money for humans: never '$0.00' for something that does cost a little."""
+    """
+    Money for humans.
+
+    Sub-cent amounts are shown to three decimals rather than as "less than $0.01":
+    at gpt-4o-mini prices a single small document really is a fraction of a cent, and
+    a concrete number is more useful than a floor when the point is to compare models.
+    """
     if amount < 0.01:
-        return "less than $0.01"
-    if amount < 1:
-        return f"${amount:.2f}"
+        return f"${amount:.3f}"
     if amount < 100:
         return f"${amount:,.2f}"
     return f"${amount:,.0f}"
+
+
+def escape_for_markdown(text):
+    """
+    Escapes dollar signs so Streamlit renders them as currency, not LaTeX.
+
+    st.markdown treats text between two `$` as a maths expression, so
+    "$0.01 to less than $0.02" silently becomes an equation with the spaces stripped.
+    Every money string that reaches st.markdown / st.caption must go through this.
+    """
+    return text.replace("$", r"\$")
+
+
+def format_money_range(low, high):
+    """
+    Formats a low-to-high span, collapsing it when both ends read the same.
+
+    "$0.02 to $0.02" tells the user nothing a single "$0.02" does not.
+    """
+    low_text, high_text = format_money(low), format_money(high)
+    if low_text == high_text:
+        return low_text
+    return f"{low_text} to {high_text}"

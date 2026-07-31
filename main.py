@@ -32,6 +32,7 @@ from interface import (
     email_results,
     get_user_inputs,
     load_header,
+    render_job_lookup,
 )
 from query_gpt import is_claude_model, new_openai_session, query_gpt_for_variable_specification
 from read_pdf import extract_text_chunks_from_pdf
@@ -446,52 +447,9 @@ if __name__ == "__main__":
         load_header()
         _, centered_div, _ = st.columns([1, 6, 1])
         with centered_div:
-            tab1, tab2, tab3 = st.tabs(["Tool", "About", "FAQ"])
+            tab1, tab2, tab3, tab4 = st.tabs(["Tool", "About", "FAQ", "Results"])
             with tab1:
                 build_interface(temp_dir)
-
-                # Job lookup section at the top
-                with st.expander("🔍 Check Job Status by ID or Email", expanded=False):
-                    st.markdown("**Lost your job? Look it up here:**")
-
-                    lookup_method = st.radio("Search by:", ["Job ID", "Email"], horizontal=True)
-
-                    if lookup_method == "Job ID":
-                        lookup_job_id = st.text_input("Enter Job ID:", placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000")
-                        if st.button("Load Job", key="load_by_id"):
-                            if lookup_job_id:
-                                job_data = get_job_status(lookup_job_id)
-                                if job_data:
-                                    st.session_state["active_job_id"] = lookup_job_id
-                                    st.success(f"✓ Job found! Status: {job_data.get('status')}")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Job not found. Check your Job ID.")
-                            else:
-                                st.warning("Please enter a Job ID")
-
-                    else:  # Email search
-                        lookup_email = st.text_input("Enter Email:", placeholder="your@email.com")
-                        if st.button("Search Jobs", key="search_by_email"):
-                            if lookup_email:
-                                job_manager = get_job_manager()
-                                jobs = job_manager.find_jobs_by_email(lookup_email)
-                                if jobs:
-                                    st.success(f"Found {len(jobs)} job(s)")
-                                    for job in jobs[:5]:  # Show max 5 recent jobs
-                                        col1, col2, col3 = st.columns([3, 2, 1])
-                                        with col1:
-                                            st.text(f"Job: {job['job_id'][:8]}...")
-                                        with col2:
-                                            st.text(f"Status: {job['status']}")
-                                        with col3:
-                                            if st.button("Load", key=f"load_{job['job_id']}"):
-                                                st.session_state["active_job_id"] = job['job_id']
-                                                st.rerun()
-                                else:
-                                    st.error("❌ No jobs found for this email")
-                            else:
-                                st.warning("Please enter an email")
 
                 # Check if we have an active job and show status
                 if "active_job_id" in st.session_state and st.session_state["active_job_id"]:
@@ -617,55 +575,61 @@ if __name__ == "__main__":
                                     # and submits the requests, then returns; the results
                                     # are collected later by polling. Live mode runs the
                                     # queries through to completion.
-                                    if st.session_state.get("processing_mode") == "batch":
-                                        # batch_runner is built on OpenAI's Batch API.
-                                        # Anthropic's is a separate surface, so refuse the
-                                        # combination here rather than failing at submit.
-                                        if is_claude_model(gpt_analyzer.get_gpt_model()):
-                                            st.session_state["active_job_id"] = None
-                                            st.error(
-                                                "Batch mode is not yet supported for Claude "
-                                                "models. Choose a GPT model, or switch "
-                                                "Processing mode to Standard."
-                                            )
-                                            st.stop()
-                                        run_job_async(
-                                            job_id,
-                                            submit_batch_job,
-                                            args=(gpt_analyzer, openai_apikey, job_id),
-                                            mark_complete=False,
-                                        )
-                                    else:
-                                        run_job_async(
-                                            job_id,
-                                            main,
-                                            args=(gpt_analyzer, openai_apikey, job_id)
-                                        )
-
-                                    # Log job start
-                                    partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
-                                    log(
-                                        f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
+                                    # batch_runner is built on OpenAI's Batch API.
+                                    # Anthropic's is a separate surface, so refuse the
+                                    # combination here rather than failing at submit.
+                                    # Deliberately not st.stop(): that halts the whole
+                                    # script run, leaving the other tabs blank.
+                                    claude_batch = (
+                                        st.session_state.get("processing_mode") == "batch"
+                                        and is_claude_model(gpt_analyzer.get_gpt_model())
                                     )
+                                    if not claude_batch:
+                                        if st.session_state.get("processing_mode") == "batch":
+                                            run_job_async(
+                                                job_id,
+                                                submit_batch_job,
+                                                args=(gpt_analyzer, openai_apikey, job_id),
+                                                mark_complete=False,
+                                            )
+                                        else:
+                                            run_job_async(
+                                                job_id,
+                                                main,
+                                                args=(gpt_analyzer, openai_apikey, job_id)
+                                            )
 
-                                    # Clean up temp files
-                                    if "temp_zip_path" in st.session_state:
-                                        try:
-                                            os.unlink(st.session_state["temp_zip_path"])
-                                        except Exception:
-                                            pass
+                                        # Log job start
+                                        partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
+                                        log(
+                                            f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
+                                        )
 
-                                # Rerun to show progress
-                                st.rerun()
+                                        # Clean up temp files
+                                        if "temp_zip_path" in st.session_state:
+                                            try:
+                                                os.unlink(st.session_state["temp_zip_path"])
+                                            except Exception:
+                                                pass
+
+                                if not claude_batch:
+                                    # Rerun to show progress. Skipped on the refusal path,
+                                    # which would otherwise wipe the error message.
+                                    st.rerun()
 
                             except Exception as e:
                                 log_error(e, gpt_analyzer)
                                 if "active_job_id" in st.session_state:
                                     del st.session_state["active_job_id"]
-                with tab2:
-                    about_tab()
-                with tab3:
-                    FAQ()
+            # Siblings of tab1, not nested inside it: previously these lived inside the
+            # Tool tab's block, so anything that ended that block early left About and
+            # FAQ blank.
+            with tab2:
+                about_tab()
+            with tab3:
+                FAQ()
+            with tab4:
+                render_job_lookup(get_job_status, get_job_manager)
     except Exception as e:
         a = None
         if gpt_analyzer:

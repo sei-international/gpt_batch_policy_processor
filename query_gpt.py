@@ -1,4 +1,3 @@
-from anthropic import Anthropic
 from openai import OpenAI
 from relevant_excerpts import get_model_token_limit
 from server_env import get_secret
@@ -47,11 +46,27 @@ def new_anthropic_session():
     """
     Returns a shared Anthropic client, built on first use.
 
-    The key is read at the point of use rather than threaded through main() and
+    The `anthropic` package is imported here rather than at module scope on purpose.
+    Claude is an optional feature, but this module is imported at startup by main.py,
+    interface.py and batch_runner.py -- so a top-level import means a missing package
+    takes down the whole app instead of just the Claude options. Importing at the point
+    of use keeps every GPT path working on a server where the package is absent.
+
+    The key is likewise read at the point of use rather than threaded through main() and
     extract_policy_doc_info(): embeddings always run on OpenAI, so the OpenAI key must
     keep flowing unchanged, and adding a second key to every signature buys nothing.
     The client is cached because the per-variable queries run concurrently.
     """
+    try:
+        from anthropic import Anthropic
+    except ImportError as e:
+        raise RuntimeError(
+            "Claude models are unavailable on this server: the 'anthropic' package is "
+            "not installed. GPT models are unaffected -- please choose one of those. "
+            "(To enable Claude, ensure 'anthropic' from requirements.txt is installed "
+            "in the deployed environment.)"
+        ) from e
+
     global _anthropic_client
     if _anthropic_client is None:
         with _anthropic_client_lock:

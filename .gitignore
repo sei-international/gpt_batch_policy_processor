@@ -13,3 +13,4 @@ archive/
 venv/
 node_modules/
 .jobs/
+.claude/

@@ -33,17 +33,19 @@ from interface import (
     get_user_inputs,
     load_header,
 )
-from query_gpt import new_openai_session, query_gpt_for_variable_specification
-from read_pdf import extract_text_chunks_from_pdf, format_quotes_by_section
+from query_gpt import is_claude_model, new_openai_session, query_gpt_for_variable_specification
+from read_pdf import extract_text_chunks_from_pdf
 from relevant_excerpts import (
     generate_all_embeddings,
     embed_variable_specifications,
-    find_top_relevant_texts,
+    select_text_chunks,
 )
 from results import format_output_doc, get_output_fname, output_results, output_metrics
 from server_env import get_secret
 from job_manager import get_job_manager, run_job_async, get_job_status, JobStatus
+from batch_runner import submit_batch_job, check_batch_job
 from openpyxl import Workbook
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tempfile import TemporaryDirectory, mkdtemp
 import io
 import json
@@ -54,7 +56,12 @@ import streamlit as st
 import sys
 import threading
 import time
-import traceback 
+import traceback
+
+# How many variable queries to run against OpenAI at once for a single document.
+# The queries are independent, so this is a straight wall-clock win. Kept modest to
+# stay well inside per-account rate limits; the client retries on 429 regardless.
+MAX_CONCURRENT_VARIABLE_QUERIES = 8
 
 
 def get_resource_path(relative_path):
@@ -93,46 +100,32 @@ def extract_policy_doc_info(
         The response format depends on the Analyzer class selected.
     """
     policy_doc_data = {}
-    client, max_num_chars = new_openai_session(openai_apikey)
     gpt_model = gpt_analyzer.get_gpt_model()
+    client, max_num_chars = new_openai_session(openai_apikey, gpt_model)
     # If the text is short, we don't need to generate embeddings to find "relevant texts"
     # If the text is long, text_chunks (defined above) will be replaced with the top relevant texts
     run_on_full_text = char_count < (max_num_chars - 1000)
 
     total_vars = len(var_embeddings)
-    for var_idx, var_name in enumerate(var_embeddings, 1):
-        # Update progress if job_id is provided
-        if job_id:
-            job_manager = get_job_manager()
-            job_manager.update_progress(
-                job_id,
-                message=f"Processing variable '{var_name}' ({var_idx}/{total_vars})",
-                current_variable=var_idx,
-                total_variables=total_vars
-            )
+    var_names = list(var_embeddings)
+    completed = 0
 
+    def process_variable(var_name):
+        """Retrieve excerpts for one variable and query GPT. Runs on a worker thread."""
         var_embedding, var_desc, context = (
             var_embeddings[var_name]["embedding"],
             var_embeddings[var_name]["variable_description"],
             var_embeddings[var_name]["context"],
         )
-        if not run_on_full_text:
-            top_text_chunks_w_emb = find_top_relevant_texts(
-                pdf_text_chunks_w_embs,
-                var_embedding,
-                num_excerpts,
-                var_name,
-                gpt_analyzer.gpt_model
-            )
-            #text_chunks = [chunk_tuple[1] for chunk_tuple in top_text_chunks_w_emb]
-            if gpt_analyzer.organize_text_chunks_by_section is True:
-                text_chunks = format_quotes_by_section(top_text_chunks_w_emb)
-            else:
-                text_chunks = [f"{t['text_chunk']} [page(s) {','.join(str(t['page_nums']))}]" for t in top_text_chunks_w_emb]
-        else:
-            text_chunks = [f"{t['text_chunk']} [page(s) {','.join(str(t['page_nums']))}]" for t in pdf_text_chunks_w_embs]
-
-        resp = query_gpt_for_variable_specification(
+        text_chunks = select_text_chunks(
+            gpt_analyzer,
+            pdf_text_chunks_w_embs,
+            var_embedding,
+            var_name,
+            num_excerpts,
+            run_on_full_text,
+        )
+        return query_gpt_for_variable_specification(
             gpt_analyzer,
             var_name,
             var_desc,
@@ -142,8 +135,30 @@ def extract_policy_doc_info(
             client,
             gpt_model,
         )
-        policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
-    return policy_doc_data
+
+    # The per-variable queries are independent, so they run concurrently. This is the
+    # dominant cost in wall-clock terms: previously a document with 20 variables meant
+    # 20 sequential round-trips to OpenAI.
+    max_workers = min(MAX_CONCURRENT_VARIABLE_QUERIES, max(1, total_vars))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_variable, v): v for v in var_names}
+        for future in as_completed(futures):
+            var_name = futures[future]
+            resp = future.result()
+            policy_doc_data[var_name] = gpt_analyzer.format_gpt_response(resp)
+            # This loop is single-threaded (the workers only run process_variable), so
+            # the counter needs no lock.
+            completed += 1
+            if job_id:
+                get_job_manager().update_progress(
+                    job_id,
+                    message=f"Processed variable '{var_name}' ({completed}/{total_vars})",
+                    current_variable=completed,
+                    total_variables=total_vars,
+                )
+
+    # Restore the user's declared variable order, which as_completed does not preserve.
+    return {v: policy_doc_data[v] for v in var_names if v in policy_doc_data}
 
 
 def print_milestone(milestone_desc, last_milestone_time, extras={}, mins=True):
@@ -274,12 +289,15 @@ def main(gpt_analyzer, openai_apikey, job_id=None):
                     output_pdf_path = f"{pdf_path}"
                 num_pages_in_pdf += num_pages
                 total_num_pages += num_pages
-                openai_client, _ = new_openai_session(openai_apikey)
+                openai_client, _ = new_openai_session(openai_apikey, gpt_model)
                 pdf_text_chunks_w_embs = generate_all_embeddings(
-                    openai_client, output_pdf_path, text_chunks, get_resource_path
+                    openai_client,
+                    output_pdf_path,
+                    text_chunks,
+                    get_resource_path,
+                    text_chunk_size,
                 )
                 # 2) Prepare embeddings to grab most relevant text excerpts for each variable
-                openai_client, _ = new_openai_session(openai_apikey)
                 var_embeddings = embed_variable_specifications(
                     openai_client, gpt_analyzer.variable_specs
                 )  # i.e. {"var_name": {"embedding": <...>", "variable_description": <...>, "context": <...>},  ...}
@@ -310,18 +328,22 @@ def main(gpt_analyzer, openai_apikey, job_id=None):
                 "Done", country_start_time, {"Number of pages in PDF": num_pages_in_pdf}
             )
         except Exception as e:
-            try:
-                output_metrics(
-                    output_doc,
-                    len(gpt_analyzer.pdfs),
-                    time.time() - total_start_time,
-                    total_num_pages,
-                    failed_pdfs,
-                )
-            except Exception as e2:
-                print("Error in output_metrics:", e2)
-            # Raise the exception so job_manager marks it as failed
-            raise e
+            # One bad document must not discard the whole run. On a 500-document batch
+            # a single transient API error or malformed PDF used to abort everything and
+            # throw away all completed work; instead we record it and carry on, and the
+            # failures are reported in the metrics sheet and the job result.
+            failed_pdfs.append(pdf)
+            print(f"Failed: {pdf} with {e}")
+            traceback.print_exc()
+            continue
+
+    # Only surface a hard failure if nothing at all succeeded -- a partial result is
+    # still worth emailing.
+    if failed_pdfs and len(failed_pdfs) == len(gpt_analyzer.pdfs):
+        raise RuntimeError(
+            f"All {len(failed_pdfs)} document(s) failed to process. "
+            f"See logs for details. Failed: {', '.join(str(p) for p in failed_pdfs)}"
+        )
 
     output_metrics(
         output_doc,
@@ -498,9 +520,30 @@ if __name__ == "__main__":
                                 var_progress = progress.get("current_variable", 0) / progress.get("total_variables", 1)
                                 st.progress(var_progress, text=f"Variables: {progress.get('current_variable', 0)}/{progress.get('total_variables', 0)}")
 
-                            # Auto-refresh every 2 seconds
-                            time.sleep(2)
-                            st.rerun()
+                            if job_status_data.get("batch_id"):
+                                # A submitted batch can take hours, so don't spin the page
+                                # every 2 seconds -- let the user check on demand or just
+                                # wait for the results email.
+                                st.write(f"**Batch ID:** `{job_status_data['batch_id']}`")
+                                st.write(
+                                    f"**Batch status:** {job_status_data.get('batch_status', 'unknown')}"
+                                )
+                                st.caption(
+                                    "Batch jobs typically finish within a few hours and are "
+                                    "guaranteed within 24 hours. You can safely close this "
+                                    "tab -- results will be emailed to you."
+                                )
+                                if st.button("Check batch progress now"):
+                                    apikey_id = st.session_state.get("apikey_id", "openai_apikey")
+                                    try:
+                                        check_batch_job(job_id, get_secret(apikey_id))
+                                    except Exception as e:
+                                        st.error(f"Could not check batch status: {e}")
+                                    st.rerun()
+                            else:
+                                # Auto-refresh every 2 seconds
+                                time.sleep(2)
+                                st.rerun()
 
                         elif status == JobStatus.COMPLETED:
                             st.success("✅ Processing complete! Results have been emailed to you.")
@@ -570,12 +613,34 @@ if __name__ == "__main__":
                                         apikey_id = st.session_state["apikey_id"]
                                     openai_apikey = get_secret(apikey_id)
 
-                                    # Start the job asynchronously
-                                    run_job_async(
-                                        job_id,
-                                        main,
-                                        args=(gpt_analyzer, openai_apikey, job_id)
-                                    )
+                                    # Start the job asynchronously. Batch mode prepares
+                                    # and submits the requests, then returns; the results
+                                    # are collected later by polling. Live mode runs the
+                                    # queries through to completion.
+                                    if st.session_state.get("processing_mode") == "batch":
+                                        # batch_runner is built on OpenAI's Batch API.
+                                        # Anthropic's is a separate surface, so refuse the
+                                        # combination here rather than failing at submit.
+                                        if is_claude_model(gpt_analyzer.get_gpt_model()):
+                                            st.session_state["active_job_id"] = None
+                                            st.error(
+                                                "Batch mode is not yet supported for Claude "
+                                                "models. Choose a GPT model, or switch "
+                                                "Processing mode to Standard."
+                                            )
+                                            st.stop()
+                                        run_job_async(
+                                            job_id,
+                                            submit_batch_job,
+                                            args=(gpt_analyzer, openai_apikey, job_id),
+                                            mark_complete=False,
+                                        )
+                                    else:
+                                        run_job_async(
+                                            job_id,
+                                            main,
+                                            args=(gpt_analyzer, openai_apikey, job_id)
+                                        )
 
                                     # Log job start
                                     partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])

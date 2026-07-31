@@ -1,5 +1,8 @@
 from analysis import get_analyzer, get_task_types
+from cost_estimate import count_pdf_pages, estimate_run_cost, format_money
 from formatter import get_formatter_type_with_labels
+from query_gpt import new_openai_session
+from relevant_excerpts import get_model_token_limit
 from results import split_workbook_by_sheets
 from server_env import get_apikey_ids, get_secret
 import re
@@ -465,20 +468,231 @@ def is_valid_email(email):
     return validated
 
 def select_gpt_model():
+    """
+    Model picker, ordered cheapest-first.
+
+    Prices are per million tokens (input/output) and are shown in the labels so the cost
+    of a run is visible at the point of choosing. gpt-4-turbo and gpt-3.5-turbo were
+    removed: both are scheduled for OpenAI API retirement on 2026-10-23.
+
+    Retrieval always runs on OpenAI embeddings regardless of the choice here, so the
+    Claude options change only which model reads the excerpts -- that makes an
+    OpenAI-vs-Claude comparison a like-for-like test of the model, not of the retrieval.
+    """
     if "gpt_model" not in st.session_state:
-        st.session_state["gpt_model"] = "gpt-4.1"  # Default model
+        st.session_state["gpt_model"] = "gpt-4o-mini"  # Default model
+    # Ordered cheapest-first by input price. Prices are US$ per 1 million tokens,
+    # written as input/output.
+    #
+    # Reasoning behaviour differs across these and is the thing most likely to surprise:
+    #   gpt-4o-mini, gpt-4.1  -- not reasoning models; never deliberate.
+    #   gpt-5.4-nano          -- reasoning-capable but defaults to effort "none", so it
+    #                            behaves like a fast non-reasoning model out of the box.
+    #   gpt-5.6-luna          -- reasoning-capable and defaults to effort "medium". We
+    #                            cannot turn that down from here: OpenAI documents
+    #                            reasoning.effort on the Responses API, and this codebase
+    #                            goes through chat.completions. Offered anyway, labelled
+    #                            for what it is -- reasoning helps on ambiguous variables
+    #                            and hurts on exhaustive quote-finding, so it is the
+    #                            user's call.
+    #   claude-*              -- thinking explicitly disabled in code (see
+    #                            query_gpt.CLAUDE_THINKING_ON_BY_DEFAULT).
+    #
+    # Luna is therefore the only option here that deliberates by default, and it says so
+    # both in its label and in a warning shown on selection.
     model_options = {
-        "gpt-4.1": "GPT-4.1 (recommended - fast)",
-        "gpt-4o": "GPT-4o (fast and capable)",
-        "gpt-4o-mini": "GPT-4o mini (faster, cheaper)",
-        "gpt-4-turbo": "GPT-4 Turbo",
-        "gpt-3.5-turbo": "GPT-3.5 Turbo (fastest, cheapest)",
+        "gpt-4o-mini": "GPT-4o mini - $0.15 / $0.60 (recommended: lowest cost, well suited to this task)",
+        "gpt-5.6-luna": "GPT-5.6 Luna - $0.20 / $1.20 (more capable, but tends to over-think simple reading tasks)",
+        "gpt-5.4-nano": "GPT-5.4 nano - $0.20 / $1.25 (newer than GPT-4o mini, but costs more for likely similar results)",
+        "claude-haiku-4-5": "Claude Haiku 4.5 - $1.00 / $5.00 (the cheaper of the two Claude options)",
+        "gpt-4.1": "GPT-4.1 - $2.00 / $8.00 (previous default; keeps older runs comparable)",
+        "claude-sonnet-5": "Claude Sonnet 5 - $3.00 / $15.00 (highest quality option here)",
     }
     st.session_state["gpt_model"] = st.selectbox(
-        "Select the OpenAI model to use for processing:",
+        "Select the model to use for processing "
+        "(cost per 1 million tokens, shown as text-in / text-out):",
         options=list(model_options.keys()),
         format_func=lambda x: model_options[x],
+        help=(
+            "**What's a token?** A token is a small piece of text - very roughly "
+            "three quarters of a word. A 10-page document is around 5,000 tokens.\n\n"
+            "**Text-in** is what gets sent to the model; **text-out** is what it writes "
+            "back. Prices are per 1 million tokens, so a single document normally costs "
+            "well under a cent."
+        ),
     )
+    st.caption(
+        "**How each document is processed:** first the tool reads through the document and "
+        "picks out the passages most likely to relate to your variables. Then the model you "
+        "chose above reads just those passages and writes your results. "
+        "**The first step always uses OpenAI, whichever model you pick** - so choosing a "
+        "Claude model changes which model interprets the passages, not how they are found. "
+        "That also means every run needs the OpenAI passcode, Claude or not."
+    )
+    if st.session_state["gpt_model"] == "gpt-4.1":
+        st.warning(
+            "**This option is about 13 times the cost of GPT-4o mini** for the same work. "
+            "It is kept here for one reason: it was the tool's default until recently, so "
+            "if you are adding documents to a set you started earlier, using it keeps the "
+            "new results consistent with the ones you already have. Changing models "
+            "part-way through a collection can make the results harder to compare. "
+            "If you are starting a fresh set of documents, choose GPT-4o mini instead."
+        )
+    if st.session_state["gpt_model"] == "gpt-5.4-nano":
+        st.warning(
+            "**GPT-4o mini is cheaper and should do this job just as well.** GPT-5.4 nano "
+            "costs more for both the text sent to it and the text it writes back, and it "
+            "is not obviously better at finding quotes and passages. It is a newer model, "
+            "so it may read some documents more carefully - but we have not found that to "
+            "be true for this kind of work. Worth trying on a few of your own documents "
+            "and comparing the results side by side before using it on a full batch."
+        )
+    if st.session_state["gpt_model"] == "gpt-5.6-luna":
+        st.warning(
+            "**GPT-5.6 Luna thinks before it answers.** That can help where a variable is "
+            "vague or needs judgement. On straightforward jobs like pulling out every "
+            "mention of a term it tends to be a drawback: it is slower, costs more, and "
+            "becomes choosier about what it hands back, so you may get **fewer** results "
+            "rather than more. If you are counting how often something appears, run the "
+            "same documents through GPT-4o mini and compare the totals before trusting it."
+        )
+    if st.session_state["gpt_model"].startswith("claude-"):
+        st.info(
+            "**Claude models are being trialled.** Because the passages are selected the same "
+            "way for every model, a Claude run can be compared directly against a GPT run on "
+            "the same documents and variables. Note that Claude costs more per token than the "
+            "cheaper GPT options, and batch processing is not yet available for Claude."
+        )
+
+def get_cached_page_counts(pdfs):
+    """
+    Page counts for the selected PDFs, cached against the exact file list.
+
+    Streamlit reruns the whole script on every widget interaction, so without this the
+    app would reopen every uploaded PDF on each keystroke.
+    """
+    key = tuple(sorted(pdfs))
+    cached = st.session_state.get("_page_counts_cache")
+    if cached and cached[0] == key:
+        return cached[1]
+    counts = count_pdf_pages(pdfs)
+    st.session_state["_page_counts_cache"] = (key, counts)
+    return counts
+
+
+def show_cost_estimate():
+    """
+    Shows a rough cost range for the run the user has currently set up.
+
+    Everything here is read from what they have already entered, so the figure updates
+    as they add documents or variables.
+    """
+    pdfs = st.session_state.get("pdfs")
+    if not pdfs or pdfs == "no_upload":
+        return
+    # Estimate the run that will actually happen, not the whole upload.
+    if st.session_state.get("is_test_run") and st.session_state.get("selected_pdfs"):
+        pdfs = st.session_state["selected_pdfs"]
+
+    variables_df = st.session_state.get("variables_df")
+    num_variables = 0 if variables_df is None else len(variables_df)
+    if num_variables <= 0:
+        return
+
+    gpt_model = st.session_state.get("gpt_model")
+    task_type = st.session_state.get("task_type", "Quote extraction")
+    analyzer_cls = get_task_types().get(task_type)
+    if analyzer_cls is None:
+        return
+    # get_chunk_size / get_num_excerpts do not use self, so they can be read off the
+    # class. Reading them from the analyzer rather than restating the formulas here
+    # means this estimate cannot drift from the real behaviour.
+    chunk_size = analyzer_cls.get_chunk_size(None)
+
+    def num_excerpts_for_pages(pages):
+        return analyzer_cls.get_num_excerpts(None, pages)
+
+    _, full_text_char_limit = new_openai_session("estimate-only", gpt_model)
+    model_char_ceiling = get_model_token_limit(gpt_model) * 4 - 20000
+
+    page_counts = get_cached_page_counts(pdfs)
+    estimate = estimate_run_cost(
+        page_counts=list(page_counts.values()),
+        num_variables=num_variables,
+        query_chars=len(st.session_state.get("main_query_input") or ""),
+        gpt_model=gpt_model,
+        chunk_size=chunk_size,
+        num_excerpts_for_pages=num_excerpts_for_pages,
+        full_text_char_limit=full_text_char_limit,
+        model_char_ceiling=model_char_ceiling,
+        # Batch is half price, but it is unavailable for Claude (main.py blocks that
+        # combination), so don't promise a discount the run will not receive.
+        is_batch=(
+            st.session_state.get("processing_mode") == "batch"
+            and not str(gpt_model).startswith("claude-")
+        ),
+    )
+    if estimate is None:
+        return
+
+    low, high = format_money(estimate["low"]), format_money(estimate["high"])
+    st.markdown(f"### Estimated cost: {low} to {high}")
+    st.caption(
+        f"For **{estimate['num_documents']} document(s)** totalling "
+        f"**{estimate['total_pages']:,} pages**, with **{estimate['num_variables']} "
+        f"variable(s)** - about {estimate['num_calls']:,} questions to the model."
+        + ("  Batch processing is already applied, at half price." if estimate["is_batch"] else "")
+    )
+    with st.expander("Why is this a range and not a figure?"):
+        st.markdown(
+            "Two things cannot be known until the run happens:\n\n"
+            "- **How much text is on a page.** A dense report holds twice the words of a "
+            "spaciously laid-out one, and only the text counts toward the cost.\n"
+            "- **How much the tool writes back.** A term mentioned fifty times in a "
+            "document produces a much longer answer than one mentioned twice.\n\n"
+            "The low figure assumes sparse pages and short answers; the high figure "
+            "assumes dense pages and long ones. Your actual cost should land between "
+            "them, and usually nearer the middle.\n\n"
+            "**What moves the cost most:** the number of documents and the number of "
+            "variables multiply together, so doubling either roughly doubles the bill. "
+            "Page count matters less than you would expect, because for longer documents "
+            "the tool sends only the passages it has selected rather than the whole text."
+        )
+        st.markdown(
+            f"Reading the documents to pick out relevant passages accounts for about "
+            f"{format_money(estimate['passage_selection_cost'])} of the total, and is "
+            "only charged the first time a given document is processed."
+        )
+
+
+def select_processing_mode():
+    """
+    Lets the user choose between live processing and the OpenAI Batch API.
+
+    Batch costs about half as much per token but is asynchronous: OpenAI guarantees
+    results within 24 hours rather than returning them immediately. It suits large
+    overnight collections; live processing suits interactive runs and test batches.
+    """
+    if "processing_mode" not in st.session_state:
+        st.session_state["processing_mode"] = "live"
+    mode_options = {
+        "live": "Standard - results as soon as they're ready (recommended)",
+        "batch": "Batch API - about 50% cheaper, results within 24 hours",
+    }
+    st.session_state["processing_mode"] = st.selectbox(
+        "Processing mode:",
+        options=list(mode_options.keys()),
+        format_func=lambda x: mode_options[x],
+    )
+    if st.session_state["processing_mode"] == "batch":
+        st.info(
+            "**Batch mode** submits your documents to OpenAI's Batch API at roughly half "
+            "the per-token cost. Results usually arrive within a few hours and are "
+            "guaranteed within 24 hours. You'll get a Job ID -- save it, close the tab, "
+            "and come back later to check on it or wait for the email. "
+            "Not recommended for your first test run."
+        )
+
 
 def input_email():
     email = st.text_input("Enter your email where'd like to receive the results:")
@@ -520,7 +734,11 @@ def build_interface(tmp_dir):
         "For variables with short descriptions, processing time will be about 1 minute per 100 PDF pages per variable (with default model selection)."
     )
     select_gpt_model()
+    select_processing_mode()
     input_email()
+    # Last, so it reflects every choice above it -- documents, variables, model and
+    # whether batch processing is on.
+    show_cost_estimate()
 
 def check_file_size(file_contents: bytes):
     """

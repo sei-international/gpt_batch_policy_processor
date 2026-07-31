@@ -1,5 +1,11 @@
 from analysis import get_analyzer, get_task_types
-from cost_estimate import count_pdf_pages, estimate_run_cost, format_money
+from cost_estimate import (
+    count_pdf_pages,
+    escape_for_markdown,
+    estimate_run_cost,
+    format_money,
+    format_money_range,
+)
 from formatter import get_formatter_type_with_labels
 from query_gpt import new_openai_session
 from relevant_excerpts import get_model_token_limit
@@ -521,14 +527,26 @@ def select_gpt_model():
             "well under a cent."
         ),
     )
-    st.caption(
-        "**How each document is processed:** first the tool reads through the document and "
-        "picks out the passages most likely to relate to your variables. Then the model you "
-        "chose above reads just those passages and writes your results. "
-        "**The first step always uses OpenAI, whichever model you pick** - so choosing a "
-        "Claude model changes which model interprets the passages, not how they are found. "
-        "That also means every run needs the OpenAI passcode, Claude or not."
-    )
+    if st.session_state["gpt_model"].startswith("claude-"):
+        # Kept to one line: the detail matters but only to users who go looking for it.
+        with st.popover("This will still use ChatGPT for preprocessing", icon=":material/info:"):
+            st.markdown(
+                "**Each document is processed in two steps.**\n\n"
+                "1. The tool reads through the document and picks out the passages most "
+                "likely to relate to your variables. **This step always uses ChatGPT "
+                "(OpenAI), whichever model you choose.**\n"
+                "2. The model you selected above reads just those passages and writes "
+                "your results.\n\n"
+                "So choosing a Claude model changes which model interprets the passages, "
+                "not how they are found. Two useful consequences:\n\n"
+                "- Every run needs the usual OpenAI passcode, Claude or not.\n"
+                "- Because the passages are chosen the same way for every model, a Claude "
+                "run can be compared directly against a ChatGPT run on the same documents."
+            )
+        st.caption(
+            "Claude models are being trialled. They cost more per token than the cheaper "
+            "ChatGPT options, and batch processing is not yet available for them."
+        )
     if st.session_state["gpt_model"] == "gpt-4.1":
         st.warning(
             "**This option is about 13 times the cost of GPT-4o mini** for the same work. "
@@ -556,13 +574,68 @@ def select_gpt_model():
             "rather than more. If you are counting how often something appears, run the "
             "same documents through GPT-4o mini and compare the totals before trusting it."
         )
-    if st.session_state["gpt_model"].startswith("claude-"):
-        st.info(
-            "**Claude models are being trialled.** Because the passages are selected the same "
-            "way for every model, a Claude run can be compared directly against a GPT run on "
-            "the same documents and variables. Note that Claude costs more per token than the "
-            "cheaper GPT options, and batch processing is not yet available for Claude."
+
+def render_job_lookup(get_job_status, get_job_manager):
+    """
+    Look up a previous run by job ID or email.
+
+    Lives in its own tab rather than at the foot of the Tool tab, where it competed for
+    attention with the run setup. The job-manager functions are passed in to avoid an
+    import cycle (main imports interface, not the other way round).
+    """
+    st.subheader("Find your results")
+    st.markdown(
+        "Every run is given a **Job ID** when it starts. Enter it here to check progress "
+        "or collect the results. If you have lost the ID, search by the email address you "
+        "gave when you submitted the run."
+    )
+
+    lookup_method = st.radio("Search by:", ["Job ID", "Email"], horizontal=True, key="lookup_method_tab")
+
+    if lookup_method == "Job ID":
+        lookup_job_id = st.text_input(
+            "Enter Job ID:",
+            placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000",
+            key="lookup_job_id_tab",
         )
+        if st.button("Find job", key="load_by_id_tab"):
+            if lookup_job_id:
+                job_data = get_job_status(lookup_job_id.strip())
+                if job_data:
+                    st.session_state["active_job_id"] = lookup_job_id.strip()
+                    st.success(f"Job found. Status: {job_data.get('status')}")
+                    st.rerun()
+                else:
+                    st.error(
+                        "No job found with that ID. Check for typos, and note that jobs "
+                        "are not kept indefinitely."
+                    )
+            else:
+                st.warning("Please enter a Job ID.")
+    else:
+        lookup_email = st.text_input(
+            "Enter Email:", placeholder="your@email.com", key="lookup_email_tab"
+        )
+        if st.button("Search jobs", key="search_by_email_tab"):
+            if lookup_email:
+                jobs = get_job_manager().find_jobs_by_email(lookup_email.strip())
+                if jobs:
+                    st.success(f"Found {len(jobs)} job(s), most recent first.")
+                    for job in jobs[:10]:
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            st.text(f"Job: {job['job_id'][:8]}...")
+                        with col2:
+                            st.text(f"Status: {job['status']}")
+                        with col3:
+                            if st.button("Open", key=f"load_tab_{job['job_id']}"):
+                                st.session_state["active_job_id"] = job["job_id"]
+                                st.rerun()
+                else:
+                    st.error("No jobs found for that email address.")
+            else:
+                st.warning("Please enter an email address.")
+
 
 def get_cached_page_counts(pdfs):
     """
@@ -635,33 +708,36 @@ def show_cost_estimate():
     if estimate is None:
         return
 
-    low, high = format_money(estimate["low"]), format_money(estimate["high"])
-    st.markdown(f"### Estimated cost: {low} to {high}")
-    st.caption(
-        f"For **{estimate['num_documents']} document(s)** totalling "
-        f"**{estimate['total_pages']:,} pages**, with **{estimate['num_variables']} "
-        f"variable(s)** - about {estimate['num_calls']:,} questions to the model."
-        + ("  Batch processing is already applied, at half price." if estimate["is_batch"] else "")
-    )
-    with st.expander("Why is this a range and not a figure?"):
+    # Every money string goes through escape_for_markdown: Streamlit reads text between
+    # two dollar signs as LaTeX, which silently mangles "$0.01 to $0.02" into an equation.
+    money_range = escape_for_markdown(format_money_range(estimate["low"], estimate["high"]))
+    with st.popover(f"Estimated cost: {money_range}", icon=":material/payments:"):
+        st.markdown(f"### Estimated cost: {money_range}")
+        st.caption(
+            f"For **{estimate['num_documents']} document(s)** totalling "
+            f"**{estimate['total_pages']:,} pages**, with **{estimate['num_variables']} "
+            f"variable(s)** - about {estimate['num_calls']:,} questions to the model."
+            + ("  Batch processing is already applied, at half price." if estimate["is_batch"] else "")
+        )
         st.markdown(
-            "Two things cannot be known until the run happens:\n\n"
+            "**Why a range?** Two things cannot be known until the run happens:\n\n"
             "- **How much text is on a page.** A dense report holds twice the words of a "
             "spaciously laid-out one, and only the text counts toward the cost.\n"
             "- **How much the tool writes back.** A term mentioned fifty times in a "
             "document produces a much longer answer than one mentioned twice.\n\n"
-            "The low figure assumes sparse pages and short answers; the high figure "
-            "assumes dense pages and long ones. Your actual cost should land between "
-            "them, and usually nearer the middle.\n\n"
-            "**What moves the cost most:** the number of documents and the number of "
-            "variables multiply together, so doubling either roughly doubles the bill. "
-            "Page count matters less than you would expect, because for longer documents "
-            "the tool sends only the passages it has selected rather than the whole text."
+            "The low figure assumes sparse pages and short answers, the high figure the "
+            "opposite. Your actual cost should land between them.\n\n"
+            "**What moves the cost most:** documents and variables multiply together, so "
+            "doubling either roughly doubles the bill. Page count matters less than you "
+            "would expect, because for longer documents the tool sends only the passages "
+            "it has selected rather than the whole text."
         )
-        st.markdown(
-            f"Reading the documents to pick out relevant passages accounts for about "
-            f"{format_money(estimate['passage_selection_cost'])} of the total, and is "
-            "only charged the first time a given document is processed."
+        st.caption(
+            "Reading the documents to pick out relevant passages accounts for about "
+            f"{escape_for_markdown(format_money(estimate['passage_selection_cost']))} of "
+            "the total, and is only charged the first time a document is processed. "
+            "These figures are an estimate, not a quote - check your provider's dashboard "
+            "for what a run actually cost."
         )
 
 

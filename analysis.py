@@ -24,6 +24,9 @@ class GPTAnalyzer:
         self.variable_specs = variable_specs
         self.email = email
         self.formatter = get_formatter(self.label, output_fmt, additional_info)
+        # Retained so a batch job can rebuild an equivalent analyzer after the app
+        # restarts (see batch_runner.analyzer_to_config).
+        self.output_fmt = output_fmt
         self.additional_info = additional_info
         self.gpt_model = gpt_model
         self.organize_text_chunks_by_section = False
@@ -126,7 +129,7 @@ def get_task_types():
 
 
 def get_analyzer(
-    task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info, gpt_model="gpt-4.1"
+    task_type, output_fmt, pdfs, main_query, variable_specs, email, additional_info, gpt_model="gpt-4o-mini"
 ):
     """
     Returns an instance of the appropriate analyzer class based on the task type.

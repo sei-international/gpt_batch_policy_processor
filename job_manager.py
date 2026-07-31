@@ -230,7 +230,7 @@ def get_job_manager():
     return _job_manager
 
 
-def run_job_async(job_id, target_func, args=(), kwargs=None):
+def run_job_async(job_id, target_func, args=(), kwargs=None, mark_complete=True):
     """
     Run a function asynchronously in a background thread.
 
@@ -239,6 +239,10 @@ def run_job_async(job_id, target_func, args=(), kwargs=None):
         target_func: Function to run
         args: Positional arguments for the function
         kwargs: Keyword arguments for the function
+        mark_complete: Whether returning from target_func means the job is done.
+            False for work that only *starts* something (e.g. submitting an OpenAI
+            batch), where completion is determined later by polling. Failures are
+            still recorded either way.
     """
     if kwargs is None:
         kwargs = {}
@@ -248,7 +252,8 @@ def run_job_async(job_id, target_func, args=(), kwargs=None):
         try:
             job_manager.mark_running(job_id)
             result = target_func(*args, **kwargs)
-            job_manager.mark_completed(job_id, result)
+            if mark_complete:
+                job_manager.mark_completed(job_id, result)
         except Exception as e:
             error_trace = traceback.format_exc()
             job_manager.mark_failed(job_id, error_trace)

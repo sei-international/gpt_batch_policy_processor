@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git rev-list *)",
+      "Bash(git ls-tree *)",
+      "Bash(.venv/Scripts/python.exe --version)",
+      "Bash(.venv/Scripts/python.exe -c \"import openai, streamlit, numpy, pymupdf4llm; print\\('deps ok', openai.__version__\\)\")",
+      "PowerShell(Get-Command python, python3, py -ErrorAction SilentlyContinue)",
+      "Bash(python -c \"import sys, openai, numpy, streamlit, pymupdf4llm, tiktoken; print\\(sys.executable\\); print\\('openai', openai.__version__\\)\")",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

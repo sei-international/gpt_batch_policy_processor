@@ -14,6 +14,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from gist_log import log_job_outcome
+
 
 class JobStatus:
     """Job status constants"""
@@ -156,6 +158,7 @@ class JobManager:
             "status": JobStatus.COMPLETED,
             "result": result
         })
+        self._log_outcome(job_id)
 
     def mark_failed(self, job_id, error):
         """
@@ -169,6 +172,15 @@ class JobManager:
             "status": JobStatus.FAILED,
             "error": str(error)
         })
+        self._log_outcome(job_id)
+
+    def _log_outcome(self, job_id):
+        # The gist log otherwise only records that a job *started*, which reads the
+        # same whether the run then succeeded or failed. Both terminal states (live
+        # and batch) pass through here, so this is the one place that sees every end.
+        job_data = self.get_job(job_id)
+        if job_data is not None:
+            log_job_outcome(job_data)
 
     def _save_job(self, job_id, job_data):
         """Save job data to file."""

@@ -11,13 +11,12 @@ Modules:
 - read_pdf: Extracts text chunks from PDF documents.
 - relevant_excerpts: Generates embeddings and finds relevant text excerpts for each variable.
 - results: Formats and outputs the results.
+- gist_log: Activity log kept in a GitHub gist.
 
 Functions:
 - get_resource_path: Returns the resource path for a given relative path.
 - extract_policy_doc_info: Extracts policy document information by querying GPT for each variable.
 - print_milestone: Prints a milestone with the elapsed time and additional information.
-- fetch_gist_content: Fetches the content of a gist from GitHub.
-- log: Logs new content to a GitHub gist.
 - main: Main function to process PDFs and generate an output document.
 
 Usage:
@@ -43,6 +42,7 @@ from relevant_excerpts import (
 )
 from results import format_output_doc, get_output_fname, output_results, output_metrics
 from server_env import get_secret
+from gist_log import log, mask_email, timestamp
 from job_manager import get_job_manager, run_job_async, get_job_status, JobStatus
 from batch_runner import submit_batch_job, check_batch_job
 from openpyxl import Workbook
@@ -180,51 +180,6 @@ def print_milestone(milestone_desc, last_milestone_time, extras={}, mins=True):
         print(f"{extra}: {extras[extra]}")
 
 
-def fetch_gist_content(gist_url, headers, log_fname):
-    """
-    Fetches the content of a gist from GitHub.
-    This is used to update our log file with the latest run information.
-
-    Args:
-        gist_url: URL of the gist.
-        headers: Headers for the request.
-        log_fname: Filename of the log file in the gist.
-
-    Returns:
-        The content of the gist file if successful, None otherwise.
-    """
-    response = requests.get(gist_url, headers=headers)
-    if response.status_code == 200:
-        gist_data = response.json()
-        return gist_data["files"][log_fname]["content"]
-    else:
-        print("Failed to fetch gist content.")
-        return None
-
-
-def log(new_content):
-    """
-    Logs new activity to a GitHub gist.
-
-    Args:
-        new_content: The new content to log.
-    """
-    github_token = get_secret("github_token")
-    log_fname = "ai-tool-log"
-    gist_base_url = "https://api.github.com/gists"
-    gist_url = f"{gist_base_url}/cdc9929b3a24b3fc4150579b2b2bb2b3"
-    headers = {
-        "Authorization": f"token {github_token}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-    current_content = fetch_gist_content(gist_url, headers, log_fname)
-    if current_content is not None:
-        updated_content = f"{current_content} \n {new_content}"
-        updated_content = updated_content + "\n ----------------------------------------------------------------------------"
-        data = {"files": {log_fname: {"content": updated_content}}}
-        requests.patch(gist_url, headers=headers, data=json.dumps(data))
-
-
 def main(gpt_analyzer, openai_apikey, job_id=None):
     """
     Main function to process PDFs and generate an output document.
@@ -252,6 +207,7 @@ def main(gpt_analyzer, openai_apikey, job_id=None):
     total_num_pages = 0
     total_start_time = time.time()
     failed_pdfs = []
+    failure_reasons = {}  # pdf path -> why it failed, surfaced in the job result
     gpt_model = gpt_analyzer.get_gpt_model()
 
     for pdf_idx, pdf in enumerate(gpt_analyzer.pdfs, 1):
@@ -273,8 +229,10 @@ def main(gpt_analyzer, openai_apikey, job_id=None):
             text_chunk_size = gpt_analyzer.get_chunk_size()
             doc_title, text_sections = extract_text_chunks_from_pdf(pdf_path, text_chunk_size)
             if "error" in text_sections[0]:
+                reason = f"Could not read PDF: {text_sections[0]['error']}"
                 failed_pdfs.append(pdf)
-                print(f"Failed: {pdf} with {text_sections[0]['error']}")
+                failure_reasons[pdf] = reason
+                print(f"Failed: {pdf} with {reason}")
                 continue
             num_pages_in_pdf = 0
             num_sections = len(text_sections)
@@ -333,17 +291,29 @@ def main(gpt_analyzer, openai_apikey, job_id=None):
             # a single transient API error or malformed PDF used to abort everything and
             # throw away all completed work; instead we record it and carry on, and the
             # failures are reported in the metrics sheet and the job result.
+            #
+            # The reason is captured, not just printed: the user sees the job record and
+            # rarely the server log, so a failure that only says "1 document failed" makes
+            # them guess. Keep the type as well as the message -- some exceptions
+            # (KeyError in particular) stringify to something almost meaningless alone.
+            reason = f"{type(e).__name__}: {e}"
             failed_pdfs.append(pdf)
-            print(f"Failed: {pdf} with {e}")
+            failure_reasons[pdf] = reason
+            print(f"Failed: {pdf} with {reason}")
             traceback.print_exc()
             continue
 
     # Only surface a hard failure if nothing at all succeeded -- a partial result is
     # still worth emailing.
     if failed_pdfs and len(failed_pdfs) == len(gpt_analyzer.pdfs):
+        detail = "; ".join(
+            f"{os.path.basename(str(p))} -> {failure_reasons.get(p, 'unknown error')}"
+            for p in failed_pdfs[:3]
+        )
+        if len(failed_pdfs) > 3:
+            detail += f"; (and {len(failed_pdfs) - 3} more)"
         raise RuntimeError(
-            f"All {len(failed_pdfs)} document(s) failed to process. "
-            f"See logs for details. Failed: {', '.join(str(p) for p in failed_pdfs)}"
+            f"All {len(failed_pdfs)} document(s) failed to process. {detail}"
         )
 
     output_metrics(
@@ -381,6 +351,11 @@ def main(gpt_analyzer, openai_apikey, job_id=None):
         "output_file_size_mb": round(file_size_mb, 2),
         "num_pdfs": len(gpt_analyzer.pdfs),
         "failed_pdfs": failed_pdfs,
+        # Keyed by basename so the UI can show why each document failed without
+        # exposing temp-directory paths.
+        "failure_reasons": {
+            os.path.basename(str(p)): r for p, r in failure_reasons.items()
+        },
         "email_sent_to": gpt_analyzer.email
     }
 
@@ -420,14 +395,12 @@ def cleanup_temp_dir(temp_dir_path, max_retries=3, delay=1):
 
 def log_error(e, gpt_analyzer):
     st.error(f"Error processing PDFs: {e}")
-    partial_email = "unknown_email"
     msg = f"{e}\n{traceback.format_exc()}\n"
     if gpt_analyzer:
-        partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
         msg = msg + f"ERROR: {e} --> {gpt_analyzer}\n"
     st.error(f"Error generating output document: {e}")
     log(
-        f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {msg}"
+        f"{mask_email(getattr(gpt_analyzer, 'email', None))}: {timestamp()} \n {msg}"
     )
 
 if __name__ == "__main__":
@@ -520,7 +493,16 @@ if __name__ == "__main__":
                                 st.write(f"**Email sent to:** {result.get('email_sent_to', 'N/A')}")
 
                                 if result.get('failed_pdfs'):
-                                    st.warning(f"**Failed PDFs:** {', '.join(result['failed_pdfs'])}")
+                                    reasons = result.get('failure_reasons') or {}
+                                    lines = []
+                                    for p in result['failed_pdfs']:
+                                        name = os.path.basename(str(p))
+                                        why = reasons.get(name)
+                                        lines.append(f"- **{name}**" + (f" - {why}" if why else ""))
+                                    st.warning(
+                                        "**These documents could not be processed:**\n"
+                                        + "\n".join(lines)
+                                    )
 
                             # Keep job active to prevent "Run" button from showing
                             # Only clear when user clicks "Process Another Batch"
@@ -600,9 +582,8 @@ if __name__ == "__main__":
                                             )
 
                                         # Log job start
-                                        partial_email = gpt_analyzer.email[:5] + "*"*len(gpt_analyzer.email[5:])
                                         log(
-                                            f"{partial_email}: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} GMT \n {gpt_analyzer}"
+                                            f"{mask_email(gpt_analyzer.email)}: {timestamp()} \n JOB STARTED ({job_id}) \n {gpt_analyzer}"
                                         )
 
                                         # Clean up temp files
